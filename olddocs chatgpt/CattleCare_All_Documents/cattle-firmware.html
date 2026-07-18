@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cattle Collar — ESP32 Firmware</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap');
+
+:root {
+  --bg: #0c0c10;
+  --panel: #111118;
+  --card: #14141e;
+  --border: #1e1e30;
+  --green: #39ff6e;
+  --cyan: #00e5ff;
+  --amber: #ffb830;
+  --red: #ff4d6d;
+  --purple: #b06dff;
+  --blue: #4d8fff;
+  --orange: #ff8c42;
+  --muted: #404060;
+  --text: #c8c8e0;
+  /* Syntax colors */
+  --s-kw:    #cc99ff;
+  --s-type:  #4ec9ff;
+  --s-fn:    #dcdcaa;
+  --s-str:   #ce9178;
+  --s-num:   #b5cea8;
+  --s-cmt:   #4a6a4a;
+  --s-macro: #569cd6;
+  --s-const: #4fc1ff;
+  --s-pre:   #9cdcfe;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  font-family: 'Exo 2', sans-serif;
+  color: var(--text);
+  min-height: 100vh;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 23px, rgba(30,30,48,0.3) 24px);
+  pointer-events: none; z-index: 0;
+}
+
+.wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 24px 14px 60px; }
+
+/* Header */
+.header {
+  background: var(--panel);
+  border: 1px solid rgba(57,255,110,0.2);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+}
+.header-left .title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(13px, 3vw, 20px);
+  font-weight: 900; color: #fff; letter-spacing: 1px;
+}
+.header-left .title span { color: var(--green); }
+.header-left .sub { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.header-right { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; padding: 4px 10px;
+  border-radius: 4px; border: 1px solid;
+}
+.badge.green  { color: var(--green);  border-color: rgba(57,255,110,0.3);  background: rgba(57,255,110,0.06);  }
+.badge.cyan   { color: var(--cyan);   border-color: rgba(0,229,255,0.3);   background: rgba(0,229,255,0.06);   }
+.badge.amber  { color: var(--amber);  border-color: rgba(255,184,48,0.3);  background: rgba(255,184,48,0.06);  }
+.badge.purple { color: var(--purple); border-color: rgba(176,109,255,0.3); background: rgba(176,109,255,0.06); }
+
+/* File tabs */
+.tabs { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 0; }
+.tab {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; padding: 7px 14px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-bottom: none; border-radius: 5px 5px 0 0;
+  cursor: pointer; color: var(--muted);
+  transition: all 0.15s;
+}
+.tab:hover { color: var(--text); background: var(--card); }
+.tab.active { color: var(--green); background: var(--card); border-color: rgba(57,255,110,0.3); }
+.tab .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+
+/* Code block */
+.code-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0 6px 6px 6px;
+  overflow: hidden;
+  display: none;
+}
+.code-panel.active { display: block; }
+.code-panel.active[data-tab="main"]     { border-color: rgba(57,255,110,0.25); }
+.code-panel.active[data-tab="sensors"]  { border-color: rgba(0,229,255,0.25); }
+.code-panel.active[data-tab="ble"]      { border-color: rgba(176,109,255,0.25); }
+.code-panel.active[data-tab="wifi"]     { border-color: rgba(255,184,48,0.25); }
+.code-panel.active[data-tab="cloud"]    { border-color: rgba(255,77,109,0.25); }
+.code-panel.active[data-tab="power"]    { border-color: rgba(255,140,66,0.25); }
+
+.code-toolbar {
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+}
+.code-filename { color: var(--muted); }
+.code-filename span { color: var(--text); }
+.code-lines { color: var(--muted); }
+
+.code-body {
+  display: flex;
+  overflow-x: auto;
+  max-height: 680px;
+  overflow-y: auto;
+}
+.line-nums {
+  background: rgba(0,0,0,0.2);
+  border-right: 1px solid var(--border);
+  padding: 14px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--muted);
+  text-align: right;
+  user-select: none;
+  flex-shrink: 0;
+  min-width: 40px;
+}
+pre {
+  padding: 14px 18px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  line-height: 1.75;
+  flex: 1;
+  overflow: visible;
+  white-space: pre;
+}
+
+/* Syntax highlighting */
+.kw    { color: var(--s-kw); }
+.type  { color: var(--s-type); }
+.fn    { color: var(--s-fn); }
+.str   { color: var(--s-str); }
+.num   { color: var(--s-num); }
+.cmt   { color: var(--s-cmt); font-style: italic; }
+.macro { color: var(--s-macro); }
+.const { color: var(--s-const); }
+.pre   { color: var(--s-pre); }
+
+/* File structure map */
+.file-map {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.fm-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.fm-item:hover { border-color: rgba(57,255,110,0.3); }
+.fm-icon { font-size: 18px; flex-shrink: 0; }
+.fm-name { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--text); }
+.fm-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="title">CATTLE COLLAR <span>FIRMWARE</span></div>
+    <div class="sub">ESP32-S3 · Arduino Framework · PlatformIO · v1.0.0</div>
+  </div>
+  <div class="header-right">
+    <div class="badge green">✓ BLE Provision</div>
+    <div class="badge cyan">✓ WiFi Direct</div>
+    <div class="badge amber">✓ MQTT Cloud</div>
+    <div class="badge purple">✓ Deep Sleep</div>
+  </div>
+</div>
+
+<!-- File map -->
+<div class="file-map">
+  <div class="fm-item" onclick="showTab('main')">
+    <div class="fm-icon">🚀</div>
+    <div><div class="fm-name">main.cpp</div><div class="fm-desc">Boot, loop, orchestration</div></div>
+  </div>
+  <div class="fm-item" onclick="showTab('ble')">
+    <div class="fm-icon">🔵</div>
+    <div><div class="fm-name">ble_provision.h</div><div class="fm-desc">BLE WiFi credential setup</div></div>
+  </div>
+  <div class="fm-item" onclick="showTab('wifi')">
+    <div class="fm-icon">📶</div>
+    <div><div class="fm-name">wifi_manager.h</div><div class="fm-desc">WiFi connect / reconnect</div></div>
+  </div>
+  <div class="fm-item" onclick="showTab('sensors')">
+    <div class="fm-icon">🔬</div>
+    <div><div class="fm-name">sensors.h</div><div class="fm-desc">All 5 sensor drivers</div></div>
+  </div>
+  <div class="fm-item" onclick="showTab('cloud')">
+    <div class="fm-icon">☁️</div>
+    <div><div class="fm-name">cloud.h</div><div class="fm-desc">MQTT publish to cloud</div></div>
+  </div>
+  <div class="fm-item" onclick="showTab('power')">
+    <div class="fm-icon">⚡</div>
+    <div><div class="fm-name">power.h</div><div class="fm-desc">Sleep, battery, solar</div></div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" id="tab-main"    onclick="showTab('main')">   <span class="dot" style="background:#39ff6e"></span>main.cpp</div>
+  <div class="tab"        id="tab-ble"     onclick="showTab('ble')">    <span class="dot" style="background:#b06dff"></span>ble_provision.h</div>
+  <div class="tab"        id="tab-wifi"    onclick="showTab('wifi')">   <span class="dot" style="background:#ffb830"></span>wifi_manager.h</div>
+  <div class="tab"        id="tab-sensors" onclick="showTab('sensors')"><span class="dot" style="background:#00e5ff"></span>sensors.h</div>
+  <div class="tab"        id="tab-cloud"   onclick="showTab('cloud')">  <span class="dot" style="background:#ff4d6d"></span>cloud.h</div>
+  <div class="tab"        id="tab-power"   onclick="showTab('power')">  <span class="dot" style="background:#ff8c42"></span>power.h</div>
+</div>
+
+<!-- ===================== MAIN.CPP ===================== -->
+<div class="code-panel active" id="panel-main" data-tab="main">
+  <div class="code-toolbar">
+    <div class="code-filename">src / <span>main.cpp</span></div>
+    <div class="code-lines">Boot · Loop · Orchestration</div>
+  </div>
+  <div class="code-body">
+    <div class="line-nums" id="ln-main"></div>
+    <pre id="code-main"><span class="cmt">/*==========================================================
+  CATTLE SMART COLLAR — MAIN FIRMWARE
+  Device  : ESP32-S3
+  Version : 1.0.0
+  Flow    : BLE Provision (once) → WiFi → MQTT Cloud
+==========================================================*/</span>
+
+<span class="macro">#include</span> <span class="str">&lt;Arduino.h&gt;</span>
+<span class="macro">#include</span> <span class="str">"ble_provision.h"</span>
+<span class="macro">#include</span> <span class="str">"wifi_manager.h"</span>
+<span class="macro">#include</span> <span class="str">"sensors.h"</span>
+<span class="macro">#include</span> <span class="str">"cloud.h"</span>
+<span class="macro">#include</span> <span class="str">"power.h"</span>
+<span class="macro">#include</span> <span class="str">&lt;Preferences.h&gt;</span>       <span class="cmt">// NVS flash storage</span>
+<span class="macro">#include</span> <span class="str">&lt;ArduinoJson.h&gt;</span>       <span class="cmt">// JSON payload builder</span>
+
+<span class="cmt">// ── Device Identity ──────────────────────────────────────</span>
+<span class="macro">#define</span> <span class="const">FIRMWARE_VERSION</span>    <span class="str">"1.0.0"</span>
+<span class="macro">#define</span> <span class="const">DEVICE_PREFIX</span>       <span class="str">"COLLAR-"</span>
+<span class="macro">#define</span> <span class="const">SEND_INTERVAL_MS</span>    <span class="num">30000</span>     <span class="cmt">// 30 seconds</span>
+<span class="macro">#define</span> <span class="const">ALERT_INTERVAL_MS</span>   <span class="num">5000</span>      <span class="cmt">// 5 sec on alert condition</span>
+
+<span class="cmt">// ── Globals ───────────────────────────────────────────────</span>
+<span class="type">Preferences</span>   prefs;
+<span class="type">SensorData</span>    sensorData;
+<span class="type">String</span>        deviceId;
+<span class="type">bool</span>          provisioned  = <span class="kw">false</span>;
+<span class="type">unsigned long</span> lastSendTime = <span class="num">0</span>;
+
+<span class="cmt">// ── Forward declarations ──────────────────────────────────</span>
+<span class="type">void</span> <span class="fn">buildAndSendPayload</span>();
+<span class="type">bool</span> <span class="fn">alertConditionMet</span>();
+<span class="type">String</span> <span class="fn">getDeviceId</span>();
+
+<span class="cmt">// ════════════════════════════════════════════════════════
+  SETUP
+════════════════════════════════════════════════════════</span>
+<span class="type">void</span> <span class="fn">setup</span>() {
+  Serial.<span class="fn">begin</span>(<span class="num">115200</span>);
+  Serial.<span class="fn">println</span>(<span class="str">"\n[BOOT] Cattle Collar Firmware v"</span> + <span class="type">String</span>(<span class="const">FIRMWARE_VERSION</span>));
+
+  <span class="cmt">// 1. Get unique device ID from MAC</span>
+  deviceId = <span class="fn">getDeviceId</span>();
+  Serial.<span class="fn">println</span>(<span class="str">"[BOOT] Device ID: "</span> + deviceId);
+
+  <span class="cmt">// 2. Open NVS (persistent storage)</span>
+  prefs.<span class="fn">begin</span>(<span class="str">"collar"</span>, <span class="kw">false</span>);
+
+  <span class="cmt">// 3. Check if WiFi credentials exist in NVS</span>
+  provisioned = prefs.<span class="fn">getBool</span>(<span class="str">"provisioned"</span>, <span class="kw">false</span>);
+
+  <span class="kw">if</span> (!provisioned) {
+    <span class="cmt">// ── FIRST BOOT: start BLE provisioning mode ──</span>
+    Serial.<span class="fn">println</span>(<span class="str">"[BLE] No credentials found. Starting BLE provision..."</span>);
+    <span class="fn">startBLEProvisioning</span>(deviceId, &amp;prefs);
+    <span class="cmt">// Blocks until phone sends WiFi credentials via BLE</span>
+    provisioned = <span class="kw">true</span>;
+    Serial.<span class="fn">println</span>(<span class="str">"[BLE] Credentials saved. BLE stopping..."</span>);
+    <span class="fn">stopBLE</span>();   <span class="cmt">// Turn off BLE to save power permanently</span>
+  } <span class="kw">else</span> {
+    Serial.<span class="fn">println</span>(<span class="str">"[BOOT] Credentials found. Skipping BLE."</span>);
+  }
+
+  <span class="cmt">// 4. Connect to WiFi using saved credentials</span>
+  <span class="type">String</span> ssid = prefs.<span class="fn">getString</span>(<span class="str">"ssid"</span>, <span class="str">""</span>);
+  <span class="type">String</span> pass = prefs.<span class="fn">getString</span>(<span class="str">"pass"</span>, <span class="str">""</span>);
+  <span class="fn">wifiConnect</span>(ssid, pass);
+
+  <span class="cmt">// 5. Connect to MQTT cloud broker</span>
+  <span class="fn">cloudConnect</span>(deviceId);
+
+  <span class="cmt">// 6. Initialise all sensors</span>
+  <span class="fn">initSensors</span>();
+
+  <span class="cmt">// 7. Register device on cloud (first packet)</span>
+  <span class="fn">cloudRegisterDevice</span>(deviceId, <span class="const">FIRMWARE_VERSION</span>);
+
+  Serial.<span class="fn">println</span>(<span class="str">"[BOOT] Setup complete. Entering main loop."</span>);
+}
+
+<span class="cmt">// ════════════════════════════════════════════════════════
+  MAIN LOOP
+════════════════════════════════════════════════════════</span>
+<span class="type">void</span> <span class="fn">loop</span>() {
+  <span class="type">unsigned long</span> now = <span class="fn">millis</span>();
+
+  <span class="cmt">// Keep MQTT connection alive</span>
+  <span class="fn">cloudLoop</span>();
+
+  <span class="cmt">// Reconnect WiFi if dropped</span>
+  <span class="kw">if</span> (!<span class="fn">wifiConnected</span>()) {
+    Serial.<span class="fn">println</span>(<span class="str">"[WiFi] Disconnected. Reconnecting..."</span>);
+    <span class="fn">wifiReconnect</span>();
+  }
+
+  <span class="cmt">// Determine send interval (faster if alert condition)</span>
+  <span class="type">unsigned long</span> interval = <span class="fn">alertConditionMet</span>()
+                            ? <span class="const">ALERT_INTERVAL_MS</span>
+                            : <span class="const">SEND_INTERVAL_MS</span>;
+
+  <span class="kw">if</span> (now - lastSendTime &gt;= interval) {
+    lastSendTime = now;
+
+    <span class="cmt">// Read all sensors</span>
+    <span class="fn">readAllSensors</span>(&amp;sensorData);
+
+    <span class="cmt">// Build JSON payload and publish to cloud</span>
+    <span class="fn">buildAndSendPayload</span>();
+
+    <span class="cmt">// Log to serial</span>
+    Serial.<span class="fn">printf</span>(<span class="str">"[DATA] Temp:%.1f HR:%d SpO2:%d%% Steps:%d\n"</span>,
+      sensorData.bodyTempC, sensorData.heartRate,
+      sensorData.spO2, sensorData.steps);
+  }
+
+  <span class="cmt">// Power management: light sleep between reads</span>
+  <span class="fn">lightSleepUntilNextRead</span>(interval, lastSendTime);
+}
+
+<span class="cmt">// ── Build JSON and send ───────────────────────────────────</span>
+<span class="type">void</span> <span class="fn">buildAndSendPayload</span>() {
+  <span class="type">StaticJsonDocument</span>&lt;<span class="num">512</span>&gt; doc;
+
+  <span class="cmt">// Identity</span>
+  doc[<span class="str">"device_id"</span>]   = deviceId;
+  doc[<span class="str">"cow_id"</span>]      = prefs.<span class="fn">getString</span>(<span class="str">"cow_id"</span>, <span class="str">"UNSET"</span>);
+  doc[<span class="str">"timestamp"</span>]   = <span class="fn">getISOTimestamp</span>();
+
+  <span class="cmt">// Activity</span>
+  doc[<span class="str">"steps"</span>]            = sensorData.steps;
+  doc[<span class="str">"posture"</span>]          = sensorData.posture;
+  doc[<span class="str">"activity_score"</span>]   = sensorData.activityScore;
+
+  <span class="cmt">// Health</span>
+  doc[<span class="str">"body_temp_c"</span>]        = sensorData.bodyTempC;
+  doc[<span class="str">"heart_rate_bpm"</span>]     = sensorData.heartRate;
+  doc[<span class="str">"spo2_pct"</span>]           = sensorData.spO2;
+  doc[<span class="str">"rumination_cycles"</span>]  = sensorData.ruminationCycles;
+
+  <span class="cmt">// Reproduction</span>
+  doc[<span class="str">"vaginal_temp_c"</span>]  = sensorData.vaginalTempC;
+  doc[<span class="str">"estrus_flag"</span>]     = sensorData.estrusFlag;
+  doc[<span class="str">"calving_alert"</span>]   = sensorData.calvingAlert;
+
+  <span class="cmt">// Device status</span>
+  doc[<span class="str">"battery_pct"</span>]  = <span class="fn">getBatteryPercent</span>();
+  doc[<span class="str">"wifi_rssi"</span>]    = <span class="fn">getWiFiRSSI</span>();
+  doc[<span class="str">"zone"</span>]         = <span class="fn">detectZone</span>();    <span class="cmt">// "shed" or "open"</span>
+
+  <span class="type">String</span> payload;
+  <span class="fn">serializeJson</span>(doc, payload);
+  <span class="fn">cloudPublish</span>(<span class="str">"cattle/data"</span>, payload);
+}
+
+<span class="cmt">// ── Alert condition check ─────────────────────────────────</span>
+<span class="type">bool</span> <span class="fn">alertConditionMet</span>() {
+  <span class="kw">return</span> (sensorData.bodyTempC &gt; <span class="num">39.5f</span>)   <span class="cmt">// Fever</span>
+      || (sensorData.heartRate  &gt; <span class="num">100</span>)    <span class="cmt">// Tachycardia</span>
+      || (sensorData.spO2       &lt; <span class="num">92</span>)     <span class="cmt">// Low oxygen</span>
+      || sensorData.estrusFlag             <span class="cmt">// Heat detected</span>
+      || sensorData.calvingAlert;          <span class="cmt">// Calving imminent</span>
+}
+
+<span class="cmt">// ── Unique device ID from MAC ─────────────────────────────</span>
+<span class="type">String</span> <span class="fn">getDeviceId</span>() {
+  <span class="type">uint8_t</span> mac[<span class="num">6</span>];
+  <span class="fn">esp_read_mac</span>(mac, <span class="const">ESP_MAC_WIFI_STA</span>);
+  <span class="type">char</span> id[<span class="num">16</span>];
+  <span class="fn">snprintf</span>(id, <span class="kw">sizeof</span>(id), <span class="str">"%s%02X%02X%02X"</span>,
+           <span class="const">DEVICE_PREFIX</span>, mac[<span class="num">3</span>], mac[<span class="num">4</span>], mac[<span class="num">5</span>]);
+  <span class="kw">return</span> <span class="type">String</span>(id);
+}</pre>
+  </div>
+</div>
+
+<!-- ===================== BLE_PROVISION.H ===================== -->
+<div class="code-panel" id="panel-ble" data-tab="ble">
+  <div class="code-toolbar">
+    <div class="code-filename">src / <span>ble_provision.h</span></div>
+    <div class="code-lines">BLE GATT Server · WiFi Credential Delivery</div>
+  </div>
+  <div class="code-body">
+    <div class="line-nums" id="ln-ble"></div>
+    <pre id="code-ble"><span class="cmt">/*==========================================================
+  BLE PROVISIONING MODULE
+  Purpose : Accept WiFi credentials + Cow ID from farmer app
+  Method  : BLE GATT server with writable characteristics
+  Runs    : ONCE on first boot, then BLE is permanently OFF
+==========================================================*/</span>
+
+<span class="macro">#pragma once</span>
+<span class="macro">#include</span> <span class="str">&lt;BLEDevice.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;BLEServer.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;BLEUtils.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;BLE2902.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;Preferences.h&gt;</span>
+
+<span class="cmt">// ── BLE Service + Characteristic UUIDs ───────────────────</span>
+<span class="macro">#define</span> <span class="const">PROVISION_SERVICE_UUID</span>  <span class="str">"12345678-1234-1234-1234-123456789000"</span>
+<span class="macro">#define</span> <span class="const">SSID_CHAR_UUID</span>          <span class="str">"12345678-1234-1234-1234-123456789001"</span>
+<span class="macro">#define</span> <span class="const">PASS_CHAR_UUID</span>          <span class="str">"12345678-1234-1234-1234-123456789002"</span>
+<span class="macro">#define</span> <span class="const">COWID_CHAR_UUID</span>         <span class="str">"12345678-1234-1234-1234-123456789003"</span>
+<span class="macro">#define</span> <span class="const">STATUS_CHAR_UUID</span>        <span class="str">"12345678-1234-1234-1234-123456789004"</span>
+<span class="macro">#define</span> <span class="const">BLE_TIMEOUT_MS</span>          <span class="num">300000</span>   <span class="cmt">// 5 min timeout</span>
+
+<span class="kw">static</span> <span class="type">bool</span>         bleProvDone   = <span class="kw">false</span>;
+<span class="kw">static</span> <span class="type">String</span>       rcvSSID, rcvPass, rcvCowId;
+<span class="kw">static</span> <span class="type">BLEServer</span>*   pServer       = <span class="kw">nullptr</span>;
+<span class="kw">static</span> <span class="type">BLECharacteristic</span>* pStatus = <span class="kw">nullptr</span>;
+
+<span class="cmt">// ── Callback: handles writes from farmer's phone ──────────</span>
+<span class="kw">class</span> <span class="type">ProvisionCallback</span> : <span class="kw">public</span> <span class="type">BLECharacteristicCallbacks</span> {
+  <span class="type">Preferences</span>* _prefs;
+<span class="kw">public</span>:
+  <span class="fn">ProvisionCallback</span>(<span class="type">Preferences</span>* p) : _prefs(p) {}
+
+  <span class="type">void</span> <span class="fn">onWrite</span>(<span class="type">BLECharacteristic</span>* pChar) <span class="kw">override</span> {
+    <span class="type">String</span> uuid = pChar-&gt;<span class="fn">getUUID</span>().<span class="fn">toString</span>().<span class="fn">c_str</span>();
+    <span class="type">String</span> val  = pChar-&gt;<span class="fn">getValue</span>().<span class="fn">c_str</span>();
+
+    <span class="kw">if</span> (uuid == <span class="const">SSID_CHAR_UUID</span>)  { rcvSSID  = val; Serial.<span class="fn">println</span>(<span class="str">"[BLE] SSID received"</span>);  }
+    <span class="kw">if</span> (uuid == <span class="const">PASS_CHAR_UUID</span>)  { rcvPass  = val; Serial.<span class="fn">println</span>(<span class="str">"[BLE] Pass received"</span>);  }
+    <span class="kw">if</span> (uuid == <span class="const">COWID_CHAR_UUID</span>) { rcvCowId = val; Serial.<span class="fn">println</span>(<span class="str">"[BLE] CowID received"</span>); }
+
+    <span class="cmt">// All 3 values received → save to NVS and signal done</span>
+    <span class="kw">if</span> (rcvSSID.<span class="fn">length</span>() &gt; <span class="num">0</span> &amp;&amp;
+        rcvPass.<span class="fn">length</span>() &gt; <span class="num">0</span> &amp;&amp;
+        rcvCowId.<span class="fn">length</span>() &gt; <span class="num">0</span>) {
+
+      _prefs-&gt;<span class="fn">putString</span>(<span class="str">"ssid"</span>,   rcvSSID);
+      _prefs-&gt;<span class="fn">putString</span>(<span class="str">"pass"</span>,   rcvPass);
+      _prefs-&gt;<span class="fn">putString</span>(<span class="str">"cow_id"</span>, rcvCowId);
+      _prefs-&gt;<span class="fn">putBool</span>  (<span class="str">"provisioned"</span>, <span class="kw">true</span>);
+
+      <span class="cmt">// Notify phone: provisioning success</span>
+      pStatus-&gt;<span class="fn">setValue</span>(<span class="str">"OK:PROVISIONED"</span>);
+      pStatus-&gt;<span class="fn">notify</span>();
+
+      Serial.<span class="fn">println</span>(<span class="str">"[BLE] Provisioning complete! SSID="</span> + rcvSSID);
+      bleProvDone = <span class="kw">true</span>;
+    }
+  }
+};
+
+<span class="cmt">// ── Start BLE provisioning server ────────────────────────</span>
+<span class="type">void</span> <span class="fn">startBLEProvisioning</span>(<span class="type">String</span> deviceId, <span class="type">Preferences</span>* prefs) {
+  <span class="type">BLEDevice</span>::<span class="fn">init</span>(deviceId.<span class="fn">c_str</span>());
+  pServer = <span class="type">BLEDevice</span>::<span class="fn">createServer</span>();
+
+  <span class="type">BLEService</span>* svc = pServer-&gt;<span class="fn">createService</span>(<span class="const">PROVISION_SERVICE_UUID</span>);
+
+  <span class="kw">auto</span> <span class="fn">makeChar</span> = [&amp;](<span class="kw">const</span> <span class="type">char</span>* uuid) {
+    <span class="kw">return</span> svc-&gt;<span class="fn">createCharacteristic</span>(uuid,
+      <span class="type">BLECharacteristic</span>::<span class="const">PROPERTY_WRITE</span> |
+      <span class="type">BLECharacteristic</span>::<span class="const">PROPERTY_READ</span>);
+  };
+
+  <span class="kw">auto</span>* cSSID  = <span class="fn">makeChar</span>(<span class="const">SSID_CHAR_UUID</span>);
+  <span class="kw">auto</span>* cPass  = <span class="fn">makeChar</span>(<span class="const">PASS_CHAR_UUID</span>);
+  <span class="kw">auto</span>* cCowId = <span class="fn">makeChar</span>(<span class="const">COWID_CHAR_UUID</span>);
+  pStatus = svc-&gt;<span class="fn">createCharacteristic</span>(<span class="const">STATUS_CHAR_UUID</span>,
+    <span class="type">BLECharacteristic</span>::<span class="const">PROPERTY_NOTIFY</span> |
+    <span class="type">BLECharacteristic</span>::<span class="const">PROPERTY_READ</span>);
+  pStatus-&gt;<span class="fn">addDescriptor</span>(<span class="kw">new</span> <span class="type">BLE2902</span>());
+
+  <span class="kw">auto</span>* cb = <span class="kw">new</span> <span class="type">ProvisionCallback</span>(prefs);
+  cSSID -&gt;<span class="fn">setCallbacks</span>(cb);
+  cPass -&gt;<span class="fn">setCallbacks</span>(cb);
+  cCowId-&gt;<span class="fn">setCallbacks</span>(cb);
+
+  svc-&gt;<span class="fn">start</span>();
+  <span class="type">BLEDevice</span>::<span class="fn">startAdvertising</span>();
+  Serial.<span class="fn">println</span>(<span class="str">"[BLE] Advertising as: "</span> + deviceId);
+
+  <span class="cmt">// Block until provisioned or timeout</span>
+  <span class="type">unsigned long</span> start = <span class="fn">millis</span>();
+  <span class="kw">while</span> (!bleProvDone &amp;&amp; (<span class="fn">millis</span>() - start &lt; <span class="const">BLE_TIMEOUT_MS</span>)) {
+    <span class="fn">delay</span>(<span class="num">100</span>);
+  }
+  <span class="kw">if</span> (!bleProvDone) Serial.<span class="fn">println</span>(<span class="str">"[BLE] Timeout. Will retry on reboot."</span>);
+}
+
+<span class="type">void</span> <span class="fn">stopBLE</span>() {
+  <span class="type">BLEDevice</span>::<span class="fn">stopAdvertising</span>();
+  <span class="type">BLEDevice</span>::<span class="fn">deinit</span>(<span class="kw">true</span>);
+  Serial.<span class="fn">println</span>(<span class="str">"[BLE] BLE stack de-initialised. Radio OFF."</span>);
+}</pre>
+  </div>
+</div>
+
+<!-- ===================== WIFI_MANAGER.H ===================== -->
+<div class="code-panel" id="panel-wifi" data-tab="wifi">
+  <div class="code-toolbar">
+    <div class="code-filename">src / <span>wifi_manager.h</span></div>
+    <div class="code-lines">WiFi Connect · Auto-Reconnect · RSSI Zone Detection</div>
+  </div>
+  <div class="code-body">
+    <div class="line-nums" id="ln-wifi"></div>
+    <pre id="code-wifi"><span class="cmt">/*==========================================================
+  WiFi MANAGER MODULE
+  Handles: connect, reconnect, RSSI zone detection
+  Zone detection: "shed" if RSSI > -65dBm, else "open"
+==========================================================*/</span>
+
+<span class="macro">#pragma once</span>
+<span class="macro">#include</span> <span class="str">&lt;WiFi.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;time.h&gt;</span>
+
+<span class="macro">#define</span> <span class="const">WIFI_RETRY_LIMIT</span>   <span class="num">20</span>      <span class="cmt">// 10 seconds max</span>
+<span class="macro">#define</span> <span class="const">WIFI_RETRY_DELAY</span>   <span class="num">500</span>     <span class="cmt">// ms between retries</span>
+<span class="macro">#define</span> <span class="const">SHED_RSSI_THRESH</span>   <span class="num">-65</span>     <span class="cmt">// dBm: stronger = shed</span>
+<span class="macro">#define</span> <span class="const">NTP_SERVER</span>         <span class="str">"pool.ntp.org"</span>
+<span class="macro">#define</span> <span class="const">TZ_OFFSET</span>          <span class="num">19800</span>   <span class="cmt">// IST = UTC+5:30</span>
+
+<span class="kw">static</span> <span class="type">String</span> _ssid, _pass;
+
+<span class="cmt">// ── Connect to WiFi ───────────────────────────────────────</span>
+<span class="type">void</span> <span class="fn">wifiConnect</span>(<span class="type">String</span> ssid, <span class="type">String</span> pass) {
+  _ssid = ssid; _pass = pass;
+  <span class="type">WiFi</span>::<span class="fn">mode</span>(<span class="const">WIFI_STA</span>);
+  <span class="type">WiFi</span>::<span class="fn">begin</span>(ssid.<span class="fn">c_str</span>(), pass.<span class="fn">c_str</span>());
+
+  Serial.<span class="fn">print</span>(<span class="str">"[WiFi] Connecting to: "</span> + ssid);
+  <span class="type">int</span> retries = <span class="num">0</span>;
+  <span class="kw">while</span> (<span class="type">WiFi</span>::<span class="fn">status</span>() != <span class="const">WL_CONNECTED</span> &amp;&amp; retries++ &lt; <span class="const">WIFI_RETRY_LIMIT</span>) {
+    <span class="fn">delay</span>(<span class="const">WIFI_RETRY_DELAY</span>);
+    Serial.<span class="fn">print</span>(<span class="str">"."</span>);
+  }
+
+  <span class="kw">if</span> (<span class="type">WiFi</span>::<span class="fn">status</span>() == <span class="const">WL_CONNECTED</span>) {
+    Serial.<span class="fn">println</span>(<span class="str">"\n[WiFi] Connected! IP: "</span> + <span class="type">WiFi</span>::<span class="fn">localIP</span>().<span class="fn">toString</span>());
+    Serial.<span class="fn">println</span>(<span class="str">"[WiFi] RSSI: "</span> + <span class="type">String</span>(<span class="type">WiFi</span>::<span class="fn">RSSI</span>()) + <span class="str">" dBm"</span>);
+    <span class="fn">syncNTP</span>();
+  } <span class="kw">else</span> {
+    Serial.<span class="fn">println</span>(<span class="str">"\n[WiFi] FAILED. Will retry in loop."</span>);
+  }
+}
+
+<span class="type">void</span> <span class="fn">wifiReconnect</span>() { <span class="fn">wifiConnect</span>(_ssid, _pass); }
+
+<span class="type">bool</span> <span class="fn">wifiConnected</span>() { <span class="kw">return</span> <span class="type">WiFi</span>::<span class="fn">status</span>() == <span class="const">WL_CONNECTED</span>; }
+
+<span class="type">int</span>  <span class="fn">getWiFiRSSI</span>()   { <span class="kw">return</span> <span class="type">WiFi</span>::<span class="fn">RSSI</span>(); }
+
+<span class="cmt">// ── Zone Detection via RSSI ───────────────────────────────</span>
+<span class="cmt">// Shed APs are indoor → stronger signal → RSSI closer to 0</span>
+<span class="cmt">// Open area APs are farther → weaker → RSSI more negative</span>
+<span class="type">String</span> <span class="fn">detectZone</span>() {
+  <span class="kw">return</span> (<span class="fn">getWiFiRSSI</span>() &gt;= <span class="const">SHED_RSSI_THRESH</span>) ? <span class="str">"shed"</span> : <span class="str">"open"</span>;
+}
+
+<span class="cmt">// ── Sync time from NTP ────────────────────────────────────</span>
+<span class="type">void</span> <span class="fn">syncNTP</span>() {
+  <span class="fn">configTime</span>(<span class="const">TZ_OFFSET</span>, <span class="num">0</span>, <span class="const">NTP_SERVER</span>);
+  Serial.<span class="fn">print</span>(<span class="str">"[NTP] Syncing time"</span>);
+  <span class="kw">struct</span> <span class="type">tm</span> ti;
+  <span class="kw">for</span> (<span class="type">int</span> i = <span class="num">0</span>; i &lt; <span class="num">20</span>; i++) {
+    <span class="kw">if</span> (<span class="fn">getLocalTime</span>(&amp;ti)) { Serial.<span class="fn">println</span>(<span class="str">" OK"</span>); <span class="kw">return</span>; }
+    <span class="fn">delay</span>(<span class="num">500</span>); Serial.<span class="fn">print</span>(<span class="str">"."</span>);
+  }
+  Serial.<span class="fn">println</span>(<span class="str">" FAILED"</span>);
+}
+
+<span class="cmt">// ── ISO 8601 timestamp ────────────────────────────────────</span>
+<span class="type">String</span> <span class="fn">getISOTimestamp</span>() {
+  <span class="kw">struct</span> <span class="type">tm</span> ti;
+  <span class="kw">if</span> (!<span class="fn">getLocalTime</span>(&amp;ti)) <span class="kw">return</span> <span class="str">"1970-01-01T00:00:00Z"</span>;
+  <span class="type">char</span> buf[<span class="num">30</span>];
+  <span class="fn">strftime</span>(buf, <span class="kw">sizeof</span>(buf), <span class="str">"%Y-%m-%dT%H:%M:%SZ"</span>, &amp;ti);
+  <span class="kw">return</span> <span class="type">String</span>(buf);
+}</pre>
+  </div>
+</div>
+
+<!-- ===================== SENSORS.H ===================== -->
+<div class="code-panel" id="panel-sensors" data-tab="sensors">
+  <div class="code-toolbar">
+    <div class="code-filename">src / <span>sensors.h</span></div>
+    <div class="code-lines">MPU-6050 · MAX30102 · DS18B20 · INMP441 · LMT70</div>
+  </div>
+  <div class="code-body">
+    <div class="line-nums" id="ln-sensors"></div>
+    <pre id="code-sensors"><span class="cmt">/*==========================================================
+  SENSOR DRIVER MODULE
+  Sensors : MPU-6050 · MAX30102 · DS18B20 · INMP441 · LMT70
+  All results written into SensorData struct
+==========================================================*/</span>
+
+<span class="macro">#pragma once</span>
+<span class="macro">#include</span> <span class="str">&lt;Wire.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;MPU6050.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;MAX30105.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;heartRate.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;OneWire.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;DallasTemperature.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;driver/i2s.h&gt;</span>
+
+<span class="cmt">// ── GPIO Pin Map ──────────────────────────────────────────</span>
+<span class="macro">#define</span> <span class="const">PIN_I2C_SDA</span>       <span class="num">4</span>
+<span class="macro">#define</span> <span class="const">PIN_I2C_SCL</span>       <span class="num">5</span>
+<span class="macro">#define</span> <span class="const">PIN_ONE_WIRE</span>      <span class="num">18</span>
+<span class="macro">#define</span> <span class="const">PIN_I2S_WS</span>        <span class="num">6</span>
+<span class="macro">#define</span> <span class="const">PIN_I2S_SCK</span>       <span class="num">7</span>
+<span class="macro">#define</span> <span class="const">PIN_I2S_SD</span>        <span class="num">8</span>
+<span class="macro">#define</span> <span class="const">PIN_ADC_LMT70</span>     <span class="num">9</span>
+
+<span class="cmt">// ── Health thresholds (cattle normal ranges) ──────────────</span>
+<span class="macro">#define</span> <span class="const">TEMP_FEVER_C</span>      <span class="num">39.5f</span>
+<span class="macro">#define</span> <span class="const">TEMP_ESTRUS_RISE</span>  <span class="num">0.5f</span>    <span class="cmt">// rise vs baseline = estrus</span>
+<span class="macro">#define</span> <span class="const">TEMP_CALVING_DROP</span> <span class="num">0.3f</span>    <span class="cmt">// drop 12-24h before calving</span>
+<span class="macro">#define</span> <span class="const">HR_MAX</span>            <span class="num">100</span>
+<span class="macro">#define</span> <span class="const">SPO2_MIN</span>          <span class="num">92</span>
+<span class="macro">#define</span> <span class="const">RUM_LOW_THRESH</span>    <span class="num">300</span>     <span class="cmt">// jaw cycles/hr below = ill</span>
+<span class="macro">#define</span> <span class="const">I2S_SAMPLE_RATE</span>   <span class="num">16000</span>
+<span class="macro">#define</span> <span class="const">RUM_SAMPLE_MS</span>     <span class="num">5000</span>    <span class="cmt">// 5 sec mic window</span>
+
+<span class="cmt">// ── Sensor Data Struct ────────────────────────────────────</span>
+<span class="kw">struct</span> <span class="type">SensorData</span> {
+  <span class="cmt">// Activity</span>
+  <span class="type">int</span>     steps;
+  <span class="type">String</span>  posture;          <span class="cmt">// "grazing"|"standing"|"lying"|"walking"</span>
+  <span class="type">int</span>     activityScore;    <span class="cmt">// 0–100</span>
+  <span class="cmt">// Health</span>
+  <span class="type">float</span>   bodyTempC;
+  <span class="type">int</span>     heartRate;
+  <span class="type">int</span>     spO2;
+  <span class="type">int</span>     ruminationCycles;
+  <span class="cmt">// Reproduction</span>
+  <span class="type">float</span>   vaginalTempC;
+  <span class="type">bool</span>    estrusFlag;
+  <span class="type">bool</span>    calvingAlert;
+};
+
+<span class="cmt">// ── Sensor instances ──────────────────────────────────────</span>
+<span class="kw">static</span> <span class="type">MPU6050</span>          mpu;
+<span class="kw">static</span> <span class="type">MAX30105</span>         hrSensor;
+<span class="kw">static</span> <span class="type">OneWire</span>          ow(<span class="const">PIN_ONE_WIRE</span>);
+<span class="kw">static</span> <span class="type">DallasTemperature</span> ds(&amp;ow);
+<span class="kw">static</span> <span class="type">float</span>            vagTempBaseline = <span class="num">38.5f</span>;
+
+<span class="cmt">// ════════════════════════════════════════════════
+  INIT ALL SENSORS
+════════════════════════════════════════════════</span>
+<span class="type">void</span> <span class="fn">initSensors</span>() {
+  <span class="type">Wire</span>::<span class="fn">begin</span>(<span class="const">PIN_I2C_SDA</span>, <span class="const">PIN_I2C_SCL</span>);
+
+  <span class="cmt">// MPU-6050</span>
+  mpu.<span class="fn">initialize</span>();
+  <span class="kw">if</span> (mpu.<span class="fn">testConnection</span>())
+    Serial.<span class="fn">println</span>(<span class="str">"[SENSOR] MPU-6050 OK"</span>);
+  mpu.<span class="fn">setFullScaleAccelRange</span>(<span class="const">MPU6050_ACCEL_FS_4</span>);  <span class="cmt">// ±4g</span>
+  mpu.<span class="fn">setFullScaleGyroRange</span>(<span class="const">MPU6050_GYRO_FS_500</span>);   <span class="cmt">// ±500°/s</span>
+  mpu.<span class="fn">setDLPFMode</span>(<span class="const">MPU6050_DLPF_BW_20</span>);              <span class="cmt">// low-pass filter</span>
+
+  <span class="cmt">// MAX30102</span>
+  <span class="kw">if</span> (hrSensor.<span class="fn">begin</span>(<span class="type">Wire</span>, <span class="const">I2C_SPEED_FAST</span>)) {
+    hrSensor.<span class="fn">setup</span>(<span class="num">60</span>, <span class="num">4</span>, <span class="num">2</span>, <span class="num">400</span>, <span class="num">411</span>, <span class="num">4096</span>);
+    Serial.<span class="fn">println</span>(<span class="str">"[SENSOR] MAX30102 OK"</span>);
+  }
+
+  <span class="cmt">// DS18B20</span>
+  ds.<span class="fn">begin</span>();
+  ds.<span class="fn">setResolution</span>(<span class="num">12</span>);   <span class="cmt">// 0.0625°C resolution</span>
+  Serial.<span class="fn">println</span>(<span class="str">"[SENSOR] DS18B20 OK - found: "</span>
+    + <span class="type">String</span>(ds.<span class="fn">getDeviceCount</span>()) + <span class="str">" device(s)"</span>);
+
+  <span class="cmt">// INMP441 I2S</span>
+  <span class="type">i2s_config_t</span> i2sCfg = {
+    .mode            = (<span class="type">i2s_mode_t</span>)(<span class="const">I2S_MODE_MASTER</span> | <span class="const">I2S_MODE_RX</span>),
+    .sample_rate     = <span class="const">I2S_SAMPLE_RATE</span>,
+    .bits_per_sample = <span class="const">I2S_BITS_PER_SAMPLE_32BIT</span>,
+    .channel_format  = <span class="const">I2S_CHANNEL_FMT_ONLY_LEFT</span>,
+    .communication_format = <span class="const">I2S_COMM_FORMAT_I2S</span>,
+    .dma_buf_count   = <span class="num">4</span>,
+    .dma_buf_len     = <span class="num">512</span>,
+    .use_apll        = <span class="kw">false</span>
+  };
+  <span class="type">i2s_pin_config_t</span> pinCfg = {
+    .bck_io_num   = <span class="const">PIN_I2S_SCK</span>,
+    .ws_io_num    = <span class="const">PIN_I2S_WS</span>,
+    .data_out_num = <span class="const">I2S_PIN_NO_CHANGE</span>,
+    .data_in_num  = <span class="const">PIN_I2S_SD</span>
+  };
+  <span class="fn">i2s_driver_install</span>(<span class="const">I2S_NUM_0</span>, &amp;i2sCfg, <span class="num">0</span>, <span class="kw">nullptr</span>);
+  <span class="fn">i2s_set_pin</span>(<span class="const">I2S_NUM_0</span>, &amp;pinCfg);
+  Serial.<span class="fn">println</span>(<span class="str">"[SENSOR] INMP441 I2S OK"</span>);
+
+  Serial.<span class="fn">println</span>(<span class="str">"[SENSOR] LMT70 ADC on GPIO"</span> + <span class="type">String</span>(<span class="const">PIN_ADC_LMT70</span>));
+  <span class="fn">analogSetAttenuation</span>(<span class="const">ADC_11db</span>);   <span class="cmt">// 0–3.3V range</span>
+}
+
+<span class="cmt">// ════════════════════════════════════════════════
+  READ ALL SENSORS
+════════════════════════════════════════════════</span>
+<span class="type">void</span> <span class="fn">readAllSensors</span>(<span class="type">SensorData</span>* d) {
+  <span class="fn">readIMU</span>(d);
+  <span class="fn">readHeartRate</span>(d);
+  <span class="fn">readBodyTemp</span>(d);
+  <span class="fn">readRumination</span>(d);
+  <span class="fn">readVaginalTemp</span>(d);
+}
+
+<span class="cmt">// ── MPU-6050: Activity, posture, steps ───────────────────</span>
+<span class="type">void</span> <span class="fn">readIMU</span>(<span class="type">SensorData</span>* d) {
+  <span class="type">int16_t</span> ax, ay, az, gx, gy, gz;
+  mpu.<span class="fn">getMotion6</span>(&amp;ax, &amp;ay, &amp;az, &amp;gx, &amp;gy, &amp;gz);
+
+  <span class="type">float</span> accX = ax / <span class="num">8192.0f</span>;   <span class="cmt">// convert to g</span>
+  <span class="type">float</span> accY = ay / <span class="num">8192.0f</span>;
+  <span class="type">float</span> accZ = az / <span class="num">8192.0f</span>;
+  <span class="type">float</span> magnitude = <span class="fn">sqrt</span>(accX*accX + accY*accY + accZ*accZ);
+
+  <span class="cmt">// Step detection: threshold crossing</span>
+  <span class="kw">static</span> <span class="type">int</span>   stepCount  = <span class="num">0</span>;
+  <span class="kw">static</span> <span class="type">bool</span>  stepHigh   = <span class="kw">false</span>;
+  <span class="kw">if</span> (magnitude &gt; <span class="num">1.15f</span> &amp;&amp; !stepHigh) { stepCount++; stepHigh = <span class="kw">true</span>;  }
+  <span class="kw">if</span> (magnitude &lt; <span class="num">1.05f</span>)             { stepHigh = <span class="kw">false</span>; }
+  d-&gt;steps = stepCount;
+
+  <span class="cmt">// Posture: use Z-axis tilt (head angle)</span>
+  <span class="type">float</span> tilt = <span class="fn">atan2</span>(accX, accZ) * <span class="num">180.0f</span> / <span class="const">PI</span>;
+  <span class="kw">if</span>      (magnitude &gt; <span class="num">1.3f</span>)          d-&gt;posture = <span class="str">"walking"</span>;
+  <span class="kw">else if</span> (tilt &lt; -<span class="num">30.0f</span>)              d-&gt;posture = <span class="str">"grazing"</span>;
+  <span class="kw">else if</span> (<span class="fn">abs</span>(accZ) &lt; <span class="num">0.3f</span>)           d-&gt;posture = <span class="str">"lying"</span>;
+  <span class="kw">else</span>                                  d-&gt;posture = <span class="str">"standing"</span>;
+
+  <span class="cmt">// Activity score 0–100 based on recent magnitude</span>
+  d-&gt;activityScore = (<span class="type">int</span>)<span class="fn">constrain</span>((magnitude - <span class="num">1.0f</span>) * <span class="num">200</span>, <span class="num">0</span>, <span class="num">100</span>);
+}
+
+<span class="cmt">// ── MAX30102: Heart rate + SpO₂ ───────────────────────────</span>
+<span class="type">void</span> <span class="fn">readHeartRate</span>(<span class="type">SensorData</span>* d) {
+  <span class="kw">const</span> <span class="type">int</span> SAMPLES = <span class="num">100</span>;
+  <span class="type">long</span> irBuffer[<span class="num">100</span>], redBuffer[<span class="num">100</span>];
+  <span class="kw">for</span> (<span class="type">int</span> i = <span class="num">0</span>; i &lt; SAMPLES; i++) {
+    <span class="kw">while</span> (!hrSensor.<span class="fn">available</span>()) hrSensor.<span class="fn">check</span>();
+    redBuffer[i] = hrSensor.<span class="fn">getRed</span>();
+    irBuffer[i]  = hrSensor.<span class="fn">getIR</span>();
+    hrSensor.<span class="fn">nextSample</span>();
+  }
+  <span class="type">int32_t</span> spo2;
+  <span class="type">int8_t</span>  spo2Valid, hrValid;
+  <span class="type">int32_t</span> hr;
+  <span class="fn">maxim_heart_rate_and_oxygen_saturation</span>(
+    irBuffer, SAMPLES, redBuffer,
+    &amp;spo2, &amp;spo2Valid, &amp;hr, &amp;hrValid);
+
+  d-&gt;heartRate = hrValid  ? (<span class="type">int</span>)hr   : <span class="num">0</span>;
+  d-&gt;spO2      = spo2Valid ? (<span class="type">int</span>)spo2 : <span class="num">0</span>;
+}
+
+<span class="cmt">// ── DS18B20: Body temperature ─────────────────────────────</span>
+<span class="type">void</span> <span class="fn">readBodyTemp</span>(<span class="type">SensorData</span>* d) {
+  ds.<span class="fn">requestTemperatures</span>();
+  <span class="type">float</span> t = ds.<span class="fn">getTempCByIndex</span>(<span class="num">0</span>);
+  d-&gt;bodyTempC = (t != <span class="const">DEVICE_DISCONNECTED_C</span>) ? t : <span class="num">0.0f</span>;
+}
+
+<span class="cmt">// ── INMP441: Rumination via jaw vibration counts ──────────</span>
+<span class="type">void</span> <span class="fn">readRumination</span>(<span class="type">SensorData</span>* d) {
+  <span class="kw">const</span> <span class="type">int</span>   BUF_LEN    = <span class="num">512</span>;
+  <span class="type">int32_t</span>     samples[<span class="num">512</span>];
+  <span class="type">size_t</span>      bytesRead  = <span class="num">0</span>;
+  <span class="type">int</span>         peakCount  = <span class="num">0</span>;
+  <span class="type">unsigned long</span> t0       = <span class="fn">millis</span>();
+
+  <span class="kw">while</span> (<span class="fn">millis</span>() - t0 &lt; <span class="const">RUM_SAMPLE_MS</span>) {
+    <span class="fn">i2s_read</span>(<span class="const">I2S_NUM_0</span>, samples, BUF_LEN * <span class="kw">sizeof</span>(<span class="type">int32_t</span>), &amp;bytesRead, <span class="num">100</span>);
+    <span class="type">int</span> n = bytesRead / <span class="kw">sizeof</span>(<span class="type">int32_t</span>);
+    <span class="type">bool</span> inPeak = <span class="kw">false</span>;
+    <span class="kw">for</span> (<span class="type">int</span> i = <span class="num">0</span>; i &lt; n; i++) {
+      <span class="type">float</span> v = <span class="fn">abs</span>(samples[i] / (<span class="type">float</span>)<span class="num">0x7FFFFFFF</span>);
+      <span class="kw">if</span> (v &gt; <span class="num">0.02f</span> &amp;&amp; !inPeak) { peakCount++; inPeak = <span class="kw">true</span>; }
+      <span class="kw">if</span> (v &lt; <span class="num">0.01f</span>)             { inPeak = <span class="kw">false</span>; }
+    }
+  }
+  <span class="cmt">// Scale 5-sec count to cycles per hour</span>
+  d-&gt;ruminationCycles = peakCount * (<span class="num">3600</span> / (<span class="const">RUM_SAMPLE_MS</span> / <span class="num">1000</span>));
+}
+
+<span class="cmt">// ── LMT70: Vaginal temp (estrus + calving detection) ──────</span>
+<span class="type">void</span> <span class="fn">readVaginalTemp</span>(<span class="type">SensorData</span>* d) {
+  <span class="cmt">// LMT70: Vout = 1.8639 - 0.01158 * T_celsius</span>
+  <span class="cmt">// → T = (1.8639 - Vout) / 0.01158</span>
+  <span class="type">int</span>   raw    = <span class="fn">analogRead</span>(<span class="const">PIN_ADC_LMT70</span>);
+  <span class="type">float</span> vout   = raw * (<span class="num">3.3f</span> / <span class="num">4095.0f</span>);
+  <span class="type">float</span> temp   = (<span class="num">1.8639f</span> - vout) / <span class="num">0.01158f</span>;
+  d-&gt;vaginalTempC = temp;
+
+  <span class="type">float</span> delta = temp - vagTempBaseline;
+
+  <span class="cmt">// Estrus: temp rises ≥ 0.5°C above baseline</span>
+  d-&gt;estrusFlag = (delta &gt;= <span class="const">TEMP_ESTRUS_RISE</span>);
+
+  <span class="cmt">// Calving: temp drops ≥ 0.3°C below baseline</span>
+  d-&gt;calvingAlert = (delta &lt;= -<span class="const">TEMP_CALVING_DROP</span>);
+
+  <span class="cmt">// Update baseline slowly (drift tracking)</span>
+  vagTempBaseline = vagTempBaseline * <span class="num">0.995f</span> + temp * <span class="num">0.005f</span>;
+}</pre>
+  </div>
+</div>
+
+<!-- ===================== CLOUD.H ===================== -->
+<div class="code-panel" id="panel-cloud" data-tab="cloud">
+  <div class="code-toolbar">
+    <div class="code-filename">src / <span>cloud.h</span></div>
+    <div class="code-lines">MQTT over TLS · Publish · Subscribe · Alert Topics</div>
+  </div>
+  <div class="code-body">
+    <div class="line-nums" id="ln-cloud"></div>
+    <pre id="code-cloud"><span class="cmt">/*==========================================================
+  CLOUD MQTT MODULE
+  Broker  : AWS IoT Core (or any MQTT broker)
+  Protocol: MQTT over TLS port 8883
+  Topics  : cattle/data · cattle/alert · cattle/cmd
+==========================================================*/</span>
+
+<span class="macro">#pragma once</span>
+<span class="macro">#include</span> <span class="str">&lt;WiFiClientSecure.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;PubSubClient.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;ArduinoJson.h&gt;</span>
+
+<span class="cmt">// ── MQTT Broker Config ────────────────────────────────────</span>
+<span class="macro">#define</span> <span class="const">MQTT_HOST</span>     <span class="str">"your-broker.iot.amazonaws.com"</span>
+<span class="macro">#define</span> <span class="const">MQTT_PORT</span>     <span class="num">8883</span>
+<span class="macro">#define</span> <span class="const">MQTT_QOS</span>      <span class="num">1</span>
+
+<span class="cmt">// ── MQTT Topic Templates ──────────────────────────────────</span>
+<span class="macro">#define</span> <span class="const">TOPIC_DATA</span>    <span class="str">"cattle/{id}/data"</span>
+<span class="macro">#define</span> <span class="const">TOPIC_ALERT</span>   <span class="str">"cattle/{id}/alert"</span>
+<span class="macro">#define</span> <span class="const">TOPIC_CMD</span>     <span class="str">"cattle/{id}/cmd"</span>
+<span class="macro">#define</span> <span class="const">TOPIC_REGISTER</span> <span class="str">"cattle/register"</span>
+
+<span class="cmt">// ── TLS Certificates (paste from AWS IoT console) ─────────</span>
+<span class="kw">const</span> <span class="type">char</span> ROOT_CA[] <span class="const">PROGMEM</span> = <span class="str">R"EOF(
+-----BEGIN CERTIFICATE-----
+&lt;Paste AWS Root CA cert here&gt;
+-----END CERTIFICATE-----
+)EOF"</span>;
+
+<span class="kw">const</span> <span class="type">char</span> DEVICE_CERT[] <span class="const">PROGMEM</span> = <span class="str">R"EOF(
+-----BEGIN CERTIFICATE-----
+&lt;Paste device certificate here&gt;
+-----END CERTIFICATE-----
+)EOF"</span>;
+
+<span class="kw">const</span> <span class="type">char</span> PRIVATE_KEY[] <span class="const">PROGMEM</span> = <span class="str">R"EOF(
+-----BEGIN RSA PRIVATE KEY-----
+&lt;Paste private key here&gt;
+-----END RSA PRIVATE KEY-----
+)EOF"</span>;
+
+<span class="kw">static</span> <span class="type">WiFiClientSecure</span> tlsClient;
+<span class="kw">static</span> <span class="type">PubSubClient</span>    mqttClient(tlsClient);
+<span class="kw">static</span> <span class="type">String</span>           _deviceId;
+
+<span class="cmt">// ── Build topic string ────────────────────────────────────</span>
+<span class="type">String</span> <span class="fn">topic</span>(<span class="kw">const</span> <span class="type">char</span>* tmpl) {
+  <span class="type">String</span> t = tmpl;
+  t.<span class="fn">replace</span>(<span class="str">"{id}"</span>, _deviceId);
+  <span class="kw">return</span> t;
+}
+
+<span class="cmt">// ── Command handler (from cloud → collar) ─────────────────</span>
+<span class="type">void</span> <span class="fn">onMQTTMessage</span>(<span class="type">char</span>* top, <span class="type">byte</span>* payload, <span class="type">unsigned int</span> len) {
+  <span class="type">String</span> msg = <span class="type">String</span>((<span class="type">char</span>*)payload).substring(<span class="num">0</span>, len);
+  Serial.<span class="fn">println</span>(<span class="str">"[MQTT] CMD received: "</span> + msg);
+  <span class="type">StaticJsonDocument</span>&lt;<span class="num">128</span>&gt; cmd;
+  <span class="kw">if</span> (<span class="fn">deserializeJson</span>(cmd, msg) == <span class="const">DeserializationError::Ok</span>) {
+    <span class="kw">if</span> (cmd[<span class="str">"action"</span>] == <span class="str">"update_cow_id"</span>) {
+      <span class="cmt">// Handle cloud-pushed cow ID update</span>
+      Serial.<span class="fn">println</span>(<span class="str">"[CMD] CowID updated"</span>);
+    }
+  }
+}
+
+<span class="cmt">// ── Connect to MQTT broker ────────────────────────────────</span>
+<span class="type">void</span> <span class="fn">cloudConnect</span>(<span class="type">String</span> deviceId) {
+  _deviceId = deviceId;
+  tlsClient.<span class="fn">setCACert</span>(<span class="const">ROOT_CA</span>);
+  tlsClient.<span class="fn">setCertificate</span>(<span class="const">DEVICE_CERT</span>);
+  tlsClient.<span class="fn">setPrivateKey</span>(<span class="const">PRIVATE_KEY</span>);
+
+  mqttClient.<span class="fn">setServer</span>(<span class="const">MQTT_HOST</span>, <span class="const">MQTT_PORT</span>);
+  mqttClient.<span class="fn">setCallback</span>(onMQTTMessage);
+  mqttClient.<span class="fn">setBufferSize</span>(<span class="num">1024</span>);
+
+  Serial.<span class="fn">print</span>(<span class="str">"[MQTT] Connecting..."</span>);
+  <span class="kw">while</span> (!mqttClient.<span class="fn">connected</span>()) {
+    <span class="kw">if</span> (mqttClient.<span class="fn">connect</span>(deviceId.<span class="fn">c_str</span>())) {
+      mqttClient.<span class="fn">subscribe</span>(<span class="fn">topic</span>(<span class="const">TOPIC_CMD</span>).<span class="fn">c_str</span>(), <span class="const">MQTT_QOS</span>);
+      Serial.<span class="fn">println</span>(<span class="str">" connected!"</span>);
+    } <span class="kw">else</span> {
+      Serial.<span class="fn">print</span>(<span class="str">"."</span>); <span class="fn">delay</span>(<span class="num">2000</span>);
+    }
+  }
+}
+
+<span class="cmt">// ── Register device on cloud at first boot ────────────────</span>
+<span class="type">void</span> <span class="fn">cloudRegisterDevice</span>(<span class="type">String</span> devId, <span class="kw">const</span> <span class="type">char</span>* fwVer) {
+  <span class="type">StaticJsonDocument</span>&lt;<span class="num">128</span>&gt; doc;
+  doc[<span class="str">"device_id"</span>]       = devId;
+  doc[<span class="str">"firmware_version"</span>] = fwVer;
+  doc[<span class="str">"event"</span>]            = <span class="str">"boot"</span>;
+  <span class="type">String</span> payload;
+  <span class="fn">serializeJson</span>(doc, payload);
+  mqttClient.<span class="fn">publish</span>(<span class="const">TOPIC_REGISTER</span>, payload.<span class="fn">c_str</span>(), <span class="kw">true</span>);
+}
+
+<span class="cmt">// ── Publish sensor data ───────────────────────────────────</span>
+<span class="type">void</span> <span class="fn">cloudPublish</span>(<span class="kw">const</span> <span class="type">char</span>* topicKey, <span class="type">String</span>&amp; payload) {
+  <span class="kw">if</span> (!mqttClient.<span class="fn">connected</span>()) <span class="fn">cloudConnect</span>(_deviceId);
+  <span class="type">bool</span> ok = mqttClient.<span class="fn">publish</span>(
+    <span class="fn">topic</span>(topicKey).<span class="fn">c_str</span>(),
+    payload.<span class="fn">c_str</span>(),
+    <span class="kw">false</span>
+  );
+  Serial.<span class="fn">println</span>(ok ? <span class="str">"[MQTT] Sent OK"</span> : <span class="str">"[MQTT] Send FAILED"</span>);
+}
+
+<span class="type">void</span> <span class="fn">cloudLoop</span>() { mqttClient.<span class="fn">loop</span>(); }</pre>
+  </div>
+</div>
+
+<!-- ===================== POWER.H ===================== -->
+<div class="code-panel" id="panel-power" data-tab="power">
+  <div class="code-toolbar">
+    <div class="code-filename">src / <span>power.h</span></div>
+    <div class="code-lines">Light Sleep · Battery Monitor · Solar ADC</div>
+  </div>
+  <div class="code-body">
+    <div class="line-nums" id="ln-power"></div>
+    <pre id="code-power"><span class="cmt">/*==========================================================
+  POWER MANAGEMENT MODULE
+  Strategy: Light sleep between sensor reads
+            Deep sleep if battery critical (&lt;5%)
+            Wake on timer every 30 seconds
+==========================================================*/</span>
+
+<span class="macro">#pragma once</span>
+<span class="macro">#include</span> <span class="str">&lt;esp_sleep.h&gt;</span>
+<span class="macro">#include</span> <span class="str">&lt;esp_wifi.h&gt;</span>
+
+<span class="macro">#define</span> <span class="const">PIN_BATT_ADC</span>      <span class="num">10</span>      <span class="cmt">// Voltage divider from LiPo</span>
+<span class="macro">#define</span> <span class="const">BATT_DIVIDER</span>      <span class="num">2.0f</span>    <span class="cmt">// R1=R2=100kΩ → Vout = Vbatt/2</span>
+<span class="macro">#define</span> <span class="const">BATT_FULL_V</span>       <span class="num">4.2f</span>    <span class="cmt">// LiPo full voltage</span>
+<span class="macro">#define</span> <span class="const">BATT_EMPTY_V</span>      <span class="num">3.0f</span>    <span class="cmt">// LiPo cutoff voltage</span>
+<span class="macro">#define</span> <span class="const">BATT_CRITICAL_PCT</span> <span class="num">5</span>       <span class="cmt">// Enter deep sleep below 5%</span>
+
+<span class="cmt">// ── Read battery percentage ───────────────────────────────</span>
+<span class="type">int</span> <span class="fn">getBatteryPercent</span>() {
+  <span class="type">int</span>   raw   = <span class="fn">analogRead</span>(<span class="const">PIN_BATT_ADC</span>);
+  <span class="type">float</span> vADC  = raw * (<span class="num">3.3f</span> / <span class="num">4095.0f</span>);
+  <span class="type">float</span> vBatt = vADC * <span class="const">BATT_DIVIDER</span>;
+  <span class="type">int</span>   pct   = (<span class="type">int</span>)(((vBatt - <span class="const">BATT_EMPTY_V</span>)
+                  / (<span class="const">BATT_FULL_V</span> - <span class="const">BATT_EMPTY_V</span>)) * <span class="num">100.0f</span>);
+  <span class="kw">return</span> <span class="fn">constrain</span>(pct, <span class="num">0</span>, <span class="num">100</span>);
+}
+
+<span class="cmt">// ── Light sleep between reads ─────────────────────────────</span>
+<span class="cmt">// WiFi stays connected during light sleep (modem sleep)</span>
+<span class="type">void</span> <span class="fn">lightSleepUntilNextRead</span>(<span class="type">unsigned long</span> interval,
+                              <span class="type">unsigned long</span> lastSend) {
+  <span class="type">unsigned long</span> elapsed = <span class="fn">millis</span>() - lastSend;
+  <span class="kw">if</span> (elapsed &gt;= interval) <span class="kw">return</span>;   <span class="cmt">// Already time to send</span>
+
+  <span class="type">uint64_t</span> sleepUs = (interval - elapsed) * <span class="num">1000ULL</span>;
+
+  <span class="cmt">// Put WiFi modem in sleep but keep TCP/MQTT alive</span>
+  <span class="fn">esp_wifi_set_ps</span>(<span class="const">WIFI_PS_MIN_MODEM</span>);
+
+  <span class="fn">esp_sleep_enable_timer_wakeup</span>(sleepUs);
+  <span class="fn">esp_light_sleep_start</span>();   <span class="cmt">// CPU halts, WiFi stays</span>
+
+  <span class="fn">esp_wifi_set_ps</span>(<span class="const">WIFI_PS_NONE</span>);  <span class="cmt">// Restore full WiFi on wake</span>
+}
+
+<span class="cmt">// ── Deep sleep if battery critical ───────────────────────</span>
+<span class="type">void</span> <span class="fn">checkBatteryCritical</span>() {
+  <span class="kw">if</span> (<span class="fn">getBatteryPercent</span>() &lt;= <span class="const">BATT_CRITICAL_PCT</span>) {
+    Serial.<span class="fn">println</span>(<span class="str">"[PWR] Battery critical! Deep sleep 1hr."</span>);
+    <span class="fn">esp_sleep_enable_timer_wakeup</span>(<span class="num">3600ULL</span> * <span class="num">1000000ULL</span>);
+    <span class="fn">esp_deep_sleep_start</span>();   <span class="cmt">// Full shutdown, wakes after 1hr</span>
+  }
+}
+
+<span class="cmt">// ── Power mode summary ────────────────────────────────────</span>
+<span class="cmt">// ACTIVE   : ~240mA  → reading sensors + sending MQTT</span>
+<span class="cmt">// LIGHT SLP: ~15mA   → between reads, WiFi modem sleep</span>
+<span class="cmt">// DEEP SLP : ~0.01mA → battery critical, full shutdown</span>
+<span class="cmt">// Solar    : ~100mA  → net positive during daylight</span></pre>
+  </div>
+</div>
+
+</div><!-- wrapper -->
+
+<script>
+function countLines(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const text = el.innerText || el.textContent;
+  const n = text.split('\n').length;
+  const ln = document.getElementById('ln-' + id.replace('code-', ''));
+  if (!ln) return;
+  let html = '';
+  for (let i = 1; i <= n; i++) html += i + '\n';
+  ln.textContent = html;
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.code-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+window.onload = () => {
+  ['main','ble','wifi','sensors','cloud','power'].forEach(name => {
+    countLines('code-' + name);
+  });
+};
+</script>
+</body>
+</html>

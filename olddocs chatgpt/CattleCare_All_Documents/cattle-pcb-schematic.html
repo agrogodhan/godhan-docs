@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cattle Wearable — PCB Schematic & Wiring</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap');
+
+:root {
+  --bg: #0a0a08;
+  --pcb: #0d1a0e;
+  --pcb2: #111f12;
+  --copper: #b87333;
+  --copper-bright: #e8943a;
+  --silk: #e8f4e8;
+  --trace-r: #ff4444;
+  --trace-g: #44ff88;
+  --trace-b: #4488ff;
+  --trace-y: #ffcc00;
+  --trace-w: #cccccc;
+  --trace-o: #ff8800;
+  --trace-p: #cc44ff;
+  --via: #c0a060;
+  --comp-bg: #1a2a1a;
+  --comp-border: #2a4a2a;
+  --text-silk: #e0f0e0;
+  --muted: #4a6a4a;
+  --pin: #ffd700;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--text-silk);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* PCB texture background */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(13,26,14,0.8) 0%, transparent 60%),
+    radial-gradient(circle at 80% 70%, rgba(13,26,14,0.6) 0%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(45,74,45,0.15) 20px),
+    repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(45,74,45,0.15) 20px);
+  pointer-events: none; z-index: 0;
+}
+
+.wrapper {
+  position: relative; z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 16px 60px;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 20px;
+  border: 1px solid rgba(184,115,51,0.3);
+  border-radius: 4px;
+  background: rgba(13,26,14,0.6);
+  position: relative;
+}
+.header::before, .header::after {
+  content: '◆';
+  position: absolute; top: 10px;
+  color: var(--copper); font-size: 12px;
+}
+.header::before { left: 14px; }
+.header::after  { right: 14px; }
+
+.header .rev {
+  font-size: 10px; color: var(--copper);
+  letter-spacing: 3px; margin-bottom: 8px;
+}
+.header h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(16px, 4vw, 28px);
+  font-weight: 900; color: var(--silk);
+  letter-spacing: 2px;
+}
+.header h1 span { color: var(--copper-bright); }
+.header .sub {
+  margin-top: 6px; font-size: 11px; color: var(--muted);
+  letter-spacing: 1px;
+}
+
+/* Section */
+.sec {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px; font-weight: 700;
+  color: var(--copper-bright);
+  letter-spacing: 2px;
+  margin: 28px 0 12px;
+  display: flex; align-items: center; gap: 10px;
+  text-transform: uppercase;
+}
+.sec::after { content: ''; flex: 1; height: 1px; background: linear-gradient(to right, var(--copper), transparent); }
+
+/* ========================
+   PCB BOARD
+======================== */
+.pcb-board {
+  background: var(--pcb);
+  border: 3px solid #2a4a2a;
+  border-radius: 8px;
+  padding: 24px;
+  position: relative;
+  box-shadow:
+    inset 0 0 40px rgba(0,0,0,0.5),
+    0 0 20px rgba(13,26,14,0.8),
+    0 4px 20px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+
+/* PCB edge cuts / mounting holes */
+.pcb-board::before {
+  content: '';
+  position: absolute; inset: 6px;
+  border: 1px dashed rgba(184,115,51,0.2);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.mount-hole {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--copper);
+  box-shadow: 0 0 4px rgba(184,115,51,0.5);
+}
+
+/* SVG schematic container */
+.schematic-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ========================
+   WIRING TABLE
+======================== */
+.wiring-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.wire-group {
+  background: var(--pcb);
+  border: 1px solid var(--comp-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.wg-header {
+  padding: 10px 14px;
+  font-family: 'Orbitron', monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 1px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid var(--comp-border);
+}
+.wg-header .dot {
+  width: 10px; height: 10px;
+  border-radius: 50%; flex-shrink: 0;
+}
+
+.wire-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 7px 14px;
+  border-bottom: 1px solid rgba(42,74,42,0.5);
+  gap: 8px;
+  font-size: 11px;
+}
+.wire-row:last-child { border-bottom: none; }
+.wire-row:hover { background: rgba(255,255,255,0.02); }
+
+.pin-from { color: var(--silk); text-align: right; }
+.pin-to   { color: var(--muted); text-align: left; }
+.wire-line {
+  display: flex; align-items: center; justify-content: center;
+  gap: 2px; flex-shrink: 0;
+}
+.wire-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.wire-seg {
+  height: 2px; width: 20px;
+  flex-shrink: 0;
+}
+
+/* Pin number badge */
+.pin-badge {
+  display: inline-block;
+  background: rgba(255,215,0,0.1);
+  border: 1px solid rgba(255,215,0,0.3);
+  color: var(--pin);
+  font-size: 10px; padding: 1px 6px;
+  border-radius: 3px; margin-left: 4px;
+}
+
+/* Power rail */
+.pwr-rail {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 12px;
+}
+.pwr-item {
+  background: var(--pcb);
+  border: 1px solid var(--comp-border);
+  border-radius: 5px;
+  padding: 8px 14px;
+  font-size: 11px;
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; min-width: 150px;
+}
+.pwr-label { color: var(--muted); font-size: 10px; }
+.pwr-val   { font-family: 'Orbitron', monospace; font-size: 13px; font-weight: 700; }
+
+/* Component pin table */
+.pin-table {
+  width: 100%; border-collapse: separate; border-spacing: 0 4px;
+}
+.pin-table th {
+  font-size: 10px; color: var(--muted);
+  letter-spacing: 2px; text-align: left;
+  padding: 4px 12px; text-transform: uppercase;
+}
+.pin-table td {
+  background: var(--pcb);
+  padding: 9px 12px; font-size: 11px;
+  border-top: 1px solid var(--comp-border);
+  border-bottom: 1px solid var(--comp-border);
+}
+.pin-table td:first-child { border-left: 1px solid var(--comp-border); border-radius: 5px 0 0 5px; color: var(--pin); font-size: 12px; }
+.pin-table td:last-child  { border-right: 1px solid var(--comp-border); border-radius: 0 5px 5px 0; color: var(--muted); }
+.pin-table tr:hover td { border-color: rgba(184,115,51,0.3); }
+
+.comp-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px; font-weight: 700;
+  color: var(--copper-bright);
+  margin: 18px 0 8px;
+  padding-left: 4px;
+  border-left: 3px solid var(--copper);
+  letter-spacing: 1px;
+}
+
+/* Trace legend */
+.trace-legend {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 14px 18px;
+  background: var(--pcb);
+  border: 1px solid var(--comp-border);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.tl-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--muted);
+}
+.tl-line {
+  width: 28px; height: 3px; border-radius: 2px; flex-shrink: 0;
+}
+
+/* Notes box */
+.notes {
+  background: rgba(13,26,14,0.8);
+  border: 1px dashed rgba(184,115,51,0.3);
+  border-radius: 6px;
+  padding: 16px 18px;
+  font-size: 11px;
+  line-height: 1.9;
+  color: var(--muted);
+  margin-top: 20px;
+}
+.notes strong { color: var(--copper-bright); }
+.notes .note-line { display: flex; gap: 8px; }
+.notes .note-line::before { content: '//'; color: rgba(184,115,51,0.4); flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- Header -->
+<div class="header">
+  <div class="rev">PCB REV 1.0 · CATTLE SMART COLLAR · ESP32-S3</div>
+  <h1>SCHEMATIC & <span>WIRING LAYOUT</span></h1>
+  <div class="sub">BLE PROVISIONING + WiFi DIRECT TO CLOUD · 6 SENSOR MODULES</div>
+</div>
+
+<!-- Trace Legend -->
+<div class="sec">Trace Color Legend</div>
+<div class="trace-legend">
+  <div class="tl-item"><div class="tl-line" style="background:var(--trace-r)"></div>VCC 3.3V Power</div>
+  <div class="tl-item"><div class="tl-line" style="background:#333"></div>GND</div>
+  <div class="tl-item"><div class="tl-line" style="background:var(--trace-b)"></div>I²C (SDA/SCL)</div>
+  <div class="tl-item"><div class="tl-line" style="background:var(--trace-y)"></div>1-Wire (DS18B20)</div>
+  <div class="tl-item"><div class="tl-line" style="background:var(--trace-g)"></div>I²S (MEMS Mic)</div>
+  <div class="tl-item"><div class="tl-line" style="background:var(--trace-o)"></div>ADC Analog</div>
+  <div class="tl-item"><div class="tl-line" style="background:var(--trace-p)"></div>UART (Debug)</div>
+  <div class="tl-item"><div class="tl-line" style="background:var(--copper)"></div>Copper Pour / Via</div>
+</div>
+
+<!-- PCB Schematic SVG -->
+<div class="sec">PCB Schematic Diagram</div>
+<div class="pcb-board">
+  <!-- Mounting holes -->
+  <div class="mount-hole" style="top:10px;left:10px"></div>
+  <div class="mount-hole" style="top:10px;right:10px"></div>
+  <div class="mount-hole" style="bottom:10px;left:10px"></div>
+  <div class="mount-hole" style="bottom:10px;right:10px"></div>
+
+  <svg class="schematic-svg" viewBox="0 0 1000 750" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- PCB grid pattern -->
+      <pattern id="pcbgrid" width="20" height="20" patternUnits="userSpaceOnUse">
+        <circle cx="10" cy="10" r="0.8" fill="rgba(45,74,45,0.4)"/>
+      </pattern>
+      <!-- Via marker -->
+      <symbol id="via" viewBox="-5 -5 10 10">
+        <circle r="4" fill="#0d1a0e" stroke="#b87333" stroke-width="1.5"/>
+        <circle r="1.5" fill="#b87333"/>
+      </symbol>
+      <!-- Decoupling cap symbol -->
+      <symbol id="cap" viewBox="-8 -12 16 24">
+        <line x1="-6" y1="-3" x2="6" y2="-3" stroke="#b87333" stroke-width="2"/>
+        <line x1="-6" y1="3" x2="6" y2="3" stroke="#b87333" stroke-width="2"/>
+        <line x1="0" y1="-12" x2="0" y2="-3" stroke="#b87333" stroke-width="1.5"/>
+        <line x1="0" y1="3" x2="0" y2="12" stroke="#b87333" stroke-width="1.5"/>
+      </symbol>
+      <!-- Resistor symbol -->
+      <symbol id="res" viewBox="-15 -6 30 12">
+        <rect x="-10" y="-4" width="20" height="8" fill="none" stroke="#b87333" stroke-width="1.5" rx="1"/>
+        <line x1="-15" y1="0" x2="-10" y2="0" stroke="#b87333" stroke-width="1.5"/>
+        <line x1="10" y1="0" x2="15" y2="0" stroke="#b87333" stroke-width="1.5"/>
+      </symbol>
+    </defs>
+
+    <!-- PCB dot grid -->
+    <rect width="1000" height="750" fill="url(#pcbgrid)"/>
+
+    <!-- ==================== ESP32-S3 MCU ==================== -->
+    <!-- Main IC package -->
+    <rect x="370" y="270" width="260" height="200" rx="4" fill="#1a2a1a" stroke="#3a6a3a" stroke-width="2"/>
+    <rect x="375" y="275" width="250" height="190" rx="3" fill="#0d1a0e" stroke="#2a4a2a" stroke-width="1"/>
+    <!-- IC label -->
+    <text x="500" y="348" text-anchor="middle" font-family="'Orbitron',monospace" font-size="14" font-weight="700" fill="#e8943a">ESP32-S3</text>
+    <text x="500" y="365" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#4a6a4a">WROOM-1 MODULE</text>
+    <text x="500" y="380" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a5a3a">WiFi + BLE 5.0</text>
+    <text x="500" y="393" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#3a5a3a">240MHz Dual Core</text>
+    <!-- IC die illustration -->
+    <rect x="440" y="400" width="120" height="50" rx="2" fill="#0a120a" stroke="#2a3a2a" stroke-width="1"/>
+    <text x="500" y="420" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#2a4a2a">▪▪▪▪▪▪▪▪▪▪▪▪</text>
+    <text x="500" y="432" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#2a4a2a">▪▪▪▪▪▪▪▪▪▪▪▪</text>
+    <text x="500" y="444" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#2a4a2a">▪▪▪▪▪▪▪▪▪▪▪▪</text>
+
+    <!-- Left pins of ESP32 -->
+    <!-- VCC 3.3V -->
+    <line x1="280" y1="290" x2="370" y2="290" stroke="#ff4444" stroke-width="2"/>
+    <text x="275" y="294" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ff4444">3V3</text>
+    <text x="375" y="287" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">3V3</text>
+
+    <!-- GND -->
+    <line x1="280" y1="310" x2="370" y2="310" stroke="#555" stroke-width="2"/>
+    <text x="275" y="314" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#777">GND</text>
+    <text x="375" y="307" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">GND</text>
+
+    <!-- GPIO4 - I2C SDA -->
+    <line x1="280" y1="330" x2="370" y2="330" stroke="#4488ff" stroke-width="2"/>
+    <text x="275" y="334" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#4488ff">SDA</text>
+    <text x="375" y="327" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G4</text>
+
+    <!-- GPIO5 - I2C SCL -->
+    <line x1="280" y1="350" x2="370" y2="350" stroke="#4488ff" stroke-width="2"/>
+    <text x="275" y="354" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#4488ff">SCL</text>
+    <text x="375" y="347" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G5</text>
+
+    <!-- GPIO18 - 1-Wire -->
+    <line x1="280" y1="370" x2="370" y2="370" stroke="#ffcc00" stroke-width="2"/>
+    <text x="275" y="374" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ffcc00">1W</text>
+    <text x="375" y="367" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G18</text>
+
+    <!-- GPIO6 - I2S WS (Mic) -->
+    <line x1="280" y1="390" x2="370" y2="390" stroke="#44ff88" stroke-width="2"/>
+    <text x="275" y="394" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#44ff88">WS</text>
+    <text x="375" y="387" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G6</text>
+
+    <!-- GPIO7 - I2S SCK (Mic) -->
+    <line x1="280" y1="408" x2="370" y2="408" stroke="#44ff88" stroke-width="2"/>
+    <text x="275" y="412" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#44ff88">SCK</text>
+    <text x="375" y="405" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G7</text>
+
+    <!-- GPIO8 - I2S SD (Mic) -->
+    <line x1="280" y1="426" x2="370" y2="426" stroke="#44ff88" stroke-width="2"/>
+    <text x="275" y="430" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#44ff88">SD</text>
+    <text x="375" y="423" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G8</text>
+
+    <!-- GPIO9 - ADC (LMT70) -->
+    <line x1="280" y1="444" x2="370" y2="444" stroke="#ff8800" stroke-width="2"/>
+    <text x="275" y="448" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ff8800">ADC1</text>
+    <text x="375" y="441" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G9</text>
+
+    <!-- Right pins of ESP32 -->
+    <!-- UART TX -->
+    <line x1="630" y1="290" x2="720" y2="290" stroke="#cc44ff" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="725" y="294" font-family="'Share Tech Mono',monospace" font-size="9" fill="#cc44ff">TX0</text>
+    <text x="622" y="287" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G43</text>
+
+    <!-- UART RX -->
+    <line x1="630" y1="308" x2="720" y2="308" stroke="#cc44ff" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="725" y="312" font-family="'Share Tech Mono',monospace" font-size="9" fill="#cc44ff">RX0</text>
+    <text x="622" y="305" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G44</text>
+
+    <!-- EN (Reset) -->
+    <line x1="630" y1="326" x2="720" y2="326" stroke="#cccccc" stroke-width="1.5"/>
+    <text x="725" y="330" font-family="'Share Tech Mono',monospace" font-size="9" fill="#aaa">EN</text>
+    <text x="622" y="323" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">EN</text>
+
+    <!-- BOOT -->
+    <line x1="630" y1="344" x2="720" y2="344" stroke="#cccccc" stroke-width="1.5"/>
+    <text x="725" y="348" font-family="'Share Tech Mono',monospace" font-size="9" fill="#aaa">BOOT</text>
+    <text x="622" y="341" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffd700">G0</text>
+
+    <!-- ==================== POWER SECTION (Top Left) ==================== -->
+    <!-- Solar Input label -->
+    <text x="30" y="42" font-family="'Orbitron',monospace" font-size="10" font-weight="700" fill="#e8943a">POWER MODULE</text>
+
+    <!-- Solar connector J1 -->
+    <rect x="30" y="50" width="80" height="40" rx="3" fill="#1a2a1a" stroke="#b87333" stroke-width="1.5"/>
+    <text x="70" y="66" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">J1-SOLAR</text>
+    <text x="70" y="80" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a4a">5V IN</text>
+    <!-- Solar pins -->
+    <line x1="30" y1="62" x2="10" y2="62" stroke="#ff4444" stroke-width="2"/>
+    <line x1="30" y1="76" x2="10" y2="76" stroke="#555" stroke-width="2"/>
+    <text x="5" y="65" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ff4444">+5V</text>
+    <text x="5" y="79" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="9" fill="#777">GND</text>
+
+    <!-- TP4056 charger IC -->
+    <rect x="140" y="48" width="90" height="46" rx="3" fill="#1a2a1a" stroke="#3a6a3a" stroke-width="1.5"/>
+    <text x="185" y="68" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="10" fill="#e8f4e8">TP4056</text>
+    <text x="185" y="82" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a4a">LIPO CHARGER</text>
+    <!-- Trace from solar to TP4056 -->
+    <line x1="110" y1="62" x2="140" y2="62" stroke="#ff4444" stroke-width="2"/>
+    <line x1="110" y1="76" x2="140" y2="76" stroke="#555" stroke-width="2"/>
+
+    <!-- Battery connector J2 -->
+    <rect x="260" y="48" width="80" height="40" rx="3" fill="#1a2a1a" stroke="#b87333" stroke-width="1.5"/>
+    <text x="300" y="64" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">J2-BATT</text>
+    <text x="300" y="78" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a4a">LiPo 3.7V</text>
+    <!-- Trace from TP4056 to battery -->
+    <line x1="230" y1="62" x2="260" y2="62" stroke="#ff8800" stroke-width="2"/>
+    <line x1="230" y1="76" x2="260" y2="76" stroke="#555" stroke-width="2"/>
+
+    <!-- LDO Regulator -->
+    <rect x="370" y="48" width="90" height="46" rx="3" fill="#1a2a1a" stroke="#3a6a3a" stroke-width="1.5"/>
+    <text x="415" y="66" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="10" fill="#e8f4e8">LM1117</text>
+    <text x="415" y="80" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a4a">3.3V REG</text>
+    <!-- Battery to LDO -->
+    <line x1="340" y1="62" x2="370" y2="62" stroke="#ff8800" stroke-width="2"/>
+    <line x1="340" y1="76" x2="370" y2="76" stroke="#555" stroke-width="2"/>
+    <!-- LDO to VCC rail -->
+    <line x1="460" y1="62" x2="500" y2="62" stroke="#ff4444" stroke-width="2.5"/>
+    <line x1="500" y1="62" x2="500" y2="270" stroke="#ff4444" stroke-width="2.5"/>
+    <line x1="460" y1="76" x2="490" y2="76" stroke="#555" stroke-width="2.5"/>
+    <line x1="490" y1="76" x2="490" y2="310" stroke="#555" stroke-width="2"/>
+
+    <!-- VCC rail label -->
+    <text x="508" y="150" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ff4444">3V3</text>
+    <text x="496" y="165" font-family="'Share Tech Mono',monospace" font-size="9" fill="#555">GND</text>
+
+    <!-- Decoupling caps on VCC -->
+    <use href="#cap" x="540" y="115" transform="rotate(90,540,115)" width="16" height="24"/>
+    <text x="548" y="108" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a4a">100nF</text>
+    <line x1="500" y1="115" x2="530" y2="115" stroke="#ff4444" stroke-width="1.5"/>
+    <line x1="550" y1="115" x2="570" y2="115" stroke="#555" stroke-width="1.5"/>
+
+    <!-- ==================== MPU-6050 (Bottom Left) ==================== -->
+    <text x="30" y="182" font-family="'Orbitron',monospace" font-size="10" font-weight="700" fill="#4488ff">U2 · MPU-6050</text>
+    <rect x="30" y="190" width="110" height="90" rx="3" fill="#1a2a1a" stroke="#2a4aaa" stroke-width="1.5"/>
+    <text x="85" y="215" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">MPU-6050</text>
+    <text x="85" y="228" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a8a">IMU · ACCEL+GYRO</text>
+    <!-- MPU pins left -->
+    <line x1="10" y1="205" x2="30" y2="205" stroke="#ff4444" stroke-width="2"/>
+    <text x="5" y="209" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ff4444">VCC</text>
+    <line x1="10" y1="220" x2="30" y2="220" stroke="#555" stroke-width="2"/>
+    <text x="5" y="224" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#777">GND</text>
+    <!-- MPU pins right → I2C bus -->
+    <line x1="140" y1="238" x2="280" y2="238" stroke="#4488ff" stroke-width="2"/>
+    <text x="145" y="234" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4488ff">SDA</text>
+    <line x1="140" y1="252" x2="280" y2="252" stroke="#4488ff" stroke-width="2"/>
+    <text x="145" y="248" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4488ff">SCL</text>
+    <!-- I2C bus to ESP32 -->
+    <line x1="280" y1="238" x2="280" y2="330" stroke="#4488ff" stroke-width="2"/>
+    <line x1="280" y1="252" x2="270" y2="252" stroke="#4488ff" stroke-width="2"/>
+    <line x1="270" y1="252" x2="270" y2="350" stroke="#4488ff" stroke-width="2"/>
+    <!-- Via markers on I2C -->
+    <use href="#via" x="280" y="280" width="10" height="10"/>
+    <use href="#via" x="270" y="300" width="10" height="10"/>
+
+    <!-- Addr resistor for MPU -->
+    <use href="#res" x="85" y="268" width="30" height="12"/>
+    <text x="85" y="282" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a6a4a">4.7kΩ PU</text>
+    <line x1="30" y1="268" x2="70" y2="268" stroke="#4488ff" stroke-width="1.5"/>
+    <line x1="100" y1="268" x2="140" y2="268" stroke="#4488ff" stroke-width="1.5"/>
+
+    <!-- ==================== MAX30102 (Heart Rate) ==================== -->
+    <text x="30" y="322" font-family="'Orbitron',monospace" font-size="10" font-weight="700" fill="#ff4444">U3 · MAX30102</text>
+    <rect x="30" y="330" width="110" height="80" rx="3" fill="#1a2a1a" stroke="#aa2a2a" stroke-width="1.5"/>
+    <text x="85" y="352" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">MAX30102</text>
+    <text x="85" y="365" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#8a4a4a">HR + SpO₂</text>
+    <!-- MAX30102 VCC/GND -->
+    <line x1="10" y1="345" x2="30" y2="345" stroke="#ff4444" stroke-width="2"/>
+    <text x="5" y="349" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ff4444">VCC</text>
+    <line x1="10" y1="360" x2="30" y2="360" stroke="#555" stroke-width="2"/>
+    <text x="5" y="364" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#777">GND</text>
+    <!-- MAX30102 I2C shared bus -->
+    <line x1="140" y1="375" x2="280" y2="375" stroke="#4488ff" stroke-width="2"/>
+    <text x="145" y="371" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4488ff">SDA</text>
+    <line x1="140" y1="388" x2="270" y2="388" stroke="#4488ff" stroke-width="2"/>
+    <text x="145" y="384" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4488ff">SCL</text>
+    <!-- Join to I2C bus -->
+    <line x1="280" y1="330" x2="280" y2="375" stroke="#4488ff" stroke-width="2"/>
+    <use href="#via" x="280" y="375" width="10" height="10"/>
+    <line x1="270" y1="350" x2="270" y2="388" stroke="#4488ff" stroke-width="2"/>
+    <use href="#via" x="270" y="388" width="10" height="10"/>
+
+    <!-- ==================== DS18B20 (Body Temp) Top Right of sensors ==================== -->
+    <text x="760" y="182" font-family="'Orbitron',monospace" font-size="10" font-weight="700" fill="#ffcc00">U4 · DS18B20</text>
+    <rect x="760" y="190" width="110" height="70" rx="3" fill="#1a2a1a" stroke="#aaaa22" stroke-width="1.5"/>
+    <text x="815" y="212" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">DS18B20</text>
+    <text x="815" y="225" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#8a8a4a">BODY TEMP PROBE</text>
+    <text x="815" y="238" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a6a4a">EAR CANAL</text>
+    <!-- DS18B20 pins -->
+    <line x1="870" y1="205" x2="900" y2="205" stroke="#ff4444" stroke-width="2"/>
+    <text x="905" y="209" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ff4444">VCC</text>
+    <line x1="870" y1="220" x2="900" y2="220" stroke="#555" stroke-width="2"/>
+    <text x="905" y="224" font-family="'Share Tech Mono',monospace" font-size="8" fill="#777">GND</text>
+    <line x1="760" y1="235" x2="720" y2="235" stroke="#ffcc00" stroke-width="2.5"/>
+    <text x="715" y="231" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ffcc00">DATA</text>
+    <!-- 1-Wire pull-up resistor -->
+    <use href="#res" x="685" y="220" width="30" height="12"/>
+    <text x="685" y="210" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a6a4a">4.7kΩ</text>
+    <line x1="660" y1="220" x2="670" y2="220" stroke="#ffcc00" stroke-width="2"/>
+    <line x1="700" y1="220" x2="720" y2="220" stroke="#ffcc00" stroke-width="2"/>
+    <!-- 1-Wire to ESP32 -->
+    <line x1="660" y1="220" x2="630" y2="220" stroke="#ffcc00" stroke-width="2.5"/>
+    <line x1="630" y1="220" x2="630" y2="370" stroke="#ffcc00" stroke-width="2.5"/>
+    <line x1="630" y1="370" x2="280" y2="370" stroke="#ffcc00" stroke-width="2.5"/>
+    <use href="#via" x="630" y="280" width="10" height="10"/>
+
+    <!-- ==================== INMP441 MEMS MIC ==================== -->
+    <text x="760" y="302" font-family="'Orbitron',monospace" font-size="10" font-weight="700" fill="#44ff88">U5 · INMP441</text>
+    <rect x="760" y="310" width="110" height="80" rx="3" fill="#1a2a1a" stroke="#2aaa4a" stroke-width="1.5"/>
+    <text x="815" y="332" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">INMP441</text>
+    <text x="815" y="345" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a8a4a">MEMS MIC</text>
+    <text x="815" y="358" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a6a4a">I²S DIGITAL</text>
+    <!-- INMP441 pins VCC/GND -->
+    <line x1="870" y1="325" x2="900" y2="325" stroke="#ff4444" stroke-width="2"/>
+    <text x="905" y="329" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ff4444">VCC</text>
+    <line x1="870" y1="340" x2="900" y2="340" stroke="#555" stroke-width="2"/>
+    <text x="905" y="344" font-family="'Share Tech Mono',monospace" font-size="8" fill="#777">GND</text>
+    <!-- I2S lines to ESP32 -->
+    <line x1="760" y1="360" x2="630" y2="360" stroke="#44ff88" stroke-width="2"/>
+    <text x="755" y="356" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#44ff88">WS</text>
+    <line x1="760" y1="375" x2="640" y2="375" stroke="#44ff88" stroke-width="2"/>
+    <text x="755" y="371" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#44ff88">SCK</text>
+    <line x1="760" y1="390" x2="650" y2="390" stroke="#44ff88" stroke-width="2"/>
+    <text x="755" y="386" text-anchor="end" font-family="'Share Tech Mono',monospace" font-size="8" fill="#44ff88">SD</text>
+    <!-- I2S to ESP32 pins -->
+    <line x1="630" y1="360" x2="630" y2="408" stroke="#44ff88" stroke-width="2"/>
+    <line x1="630" y1="408" x2="630" y2="408" stroke="#44ff88" stroke-width="2"/>
+    <use href="#via" x="630" y="380" width="10" height="10"/>
+
+    <!-- ==================== LMT70 (Estrus Probe) ==================== -->
+    <text x="760" y="422" font-family="'Orbitron',monospace" font-size="10" font-weight="700" fill="#ff8800">U6 · LMT70</text>
+    <rect x="760" y="430" width="110" height="80" rx="3" fill="#1a2a1a" stroke="#aa5a22" stroke-width="1.5"/>
+    <text x="815" y="452" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#e8f4e8">LMT70</text>
+    <text x="815" y="465" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#8a5a2a">ESTRUS TEMP</text>
+    <text x="815" y="478" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a6a4a">ADC ANALOG</text>
+    <!-- LMT70 pins -->
+    <line x1="870" y1="445" x2="900" y2="445" stroke="#ff4444" stroke-width="2"/>
+    <text x="905" y="449" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ff4444">VCC</text>
+    <line x1="870" y1="460" x2="900" y2="460" stroke="#555" stroke-width="2"/>
+    <text x="905" y="464" font-family="'Share Tech Mono',monospace" font-size="8" fill="#777">GND</text>
+    <!-- ADC output to ESP32 -->
+    <line x1="760" y1="480" x2="700" y2="480" stroke="#ff8800" stroke-width="2.5"/>
+    <line x1="700" y1="480" x2="700" y2="500" stroke="#ff8800" stroke-width="2.5"/>
+    <line x1="700" y1="500" x2="630" y2="500" stroke="#ff8800" stroke-width="2.5"/>
+    <line x1="630" y1="500" x2="630" y2="444" stroke="#ff8800" stroke-width="2.5"/>
+    <text x="715" y="476" font-family="'Share Tech Mono',monospace" font-size="8" fill="#ff8800">VOUT→ADC</text>
+    <use href="#via" x="700" y="490" width="10" height="10"/>
+    <!-- Smoothing cap for ADC -->
+    <use href="#cap" x="700" y="540" width="16" height="24"/>
+    <text x="712" y="538" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a6a4a">100nF</text>
+
+    <!-- ==================== UART/DEBUG header ==================== -->
+    <rect x="750" y="270" width="60" height="50" rx="3" fill="#1a2a1a" stroke="#4a2a6a" stroke-width="1.5"/>
+    <text x="780" y="288" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#cc44ff">J3-DBG</text>
+    <text x="780" y="300" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a2a6a">TX RX GND</text>
+    <text x="780" y="312" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#4a2a6a">UART DEBUG</text>
+    <!-- UART traces -->
+    <line x1="720" y1="290" x2="750" y2="290" stroke="#cc44ff" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <line x1="720" y1="308" x2="750" y2="308" stroke="#cc44ff" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+    <!-- ==================== Reset + Boot buttons ==================== -->
+    <rect x="750" y="330" width="55" height="30" rx="3" fill="#1a2a1a" stroke="#3a3a3a" stroke-width="1.5"/>
+    <text x="777" y="342" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#aaa">SW1</text>
+    <text x="777" y="354" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#555">RESET</text>
+    <line x1="720" y1="344" x2="750" y2="344" stroke="#cccccc" stroke-width="1.5"/>
+
+    <rect x="750" y="370" width="55" height="30" rx="3" fill="#1a2a1a" stroke="#3a3a3a" stroke-width="1.5"/>
+    <text x="777" y="382" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#aaa">SW2</text>
+    <text x="777" y="394" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="7" fill="#555">BOOT</text>
+
+    <!-- ==================== Power rail horizontal bus ==================== -->
+    <!-- 3.3V rail horizontal line feeding all ICs -->
+    <line x1="85" y1="130" x2="960" y2="130" stroke="#ff4444" stroke-width="1.5" stroke-dasharray="8,3" opacity="0.4"/>
+    <text x="960" y="126" font-family="'Share Tech Mono',monospace" font-size="9" fill="#ff4444" opacity="0.6">3V3 RAIL</text>
+    <!-- GND rail -->
+    <line x1="85" y1="148" x2="960" y2="148" stroke="#444" stroke-width="1.5" stroke-dasharray="8,3" opacity="0.4"/>
+    <text x="960" y="144" font-family="'Share Tech Mono',monospace" font-size="9" fill="#666" opacity="0.6">GND RAIL</text>
+
+    <!-- Power connections from rails to each IC (dashed drops) -->
+    <line x1="85" y1="130" x2="85" y2="190" stroke="#ff4444" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.5"/>
+    <line x1="815" y1="130" x2="815" y2="190" stroke="#ff4444" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.5"/>
+    <line x1="815" y1="130" x2="815" y2="310" stroke="#ff4444" stroke-width="0.8" stroke-dasharray="3,2" opacity="0.3"/>
+
+    <!-- ==================== I2C bus annotation ==================== -->
+    <rect x="160" y="240" width="80" height="22" rx="3" fill="rgba(68,136,255,0.1)" stroke="rgba(68,136,255,0.3)" stroke-width="1"/>
+    <text x="200" y="255" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4488ff">I²C BUS</text>
+
+    <!-- ==================== Antenna area ==================== -->
+    <text x="500" y="475" text-anchor="middle" font-family="'Orbitron',monospace" font-size="9" fill="#e8943a">ESP32 ANTENNA</text>
+    <path d="M 460 490 Q 480 480 500 490 Q 520 500 540 490" fill="none" stroke="#b87333" stroke-width="2"/>
+    <path d="M 465 505 Q 482 495 500 505 Q 518 515 535 505" fill="none" stroke="#b87333" stroke-width="1.5" opacity="0.7"/>
+    <text x="500" y="525" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#4a6a4a">WiFi + BLE 2.4GHz</text>
+
+    <!-- ==================== Board outline dimensions ==================== -->
+    <line x1="30" y1="720" x2="970" y2="720" stroke="#b87333" stroke-width="1" opacity="0.5"/>
+    <line x1="30" y1="715" x2="30" y2="725" stroke="#b87333" stroke-width="1" opacity="0.5"/>
+    <line x1="970" y1="715" x2="970" y2="725" stroke="#b87333" stroke-width="1" opacity="0.5"/>
+    <text x="500" y="735" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="9" fill="#b87333" opacity="0.6">PCB SIZE: 60mm × 40mm (estimated) · 4-LAYER</text>
+
+    <!-- ==================== Component reference labels ==================== -->
+    <text x="500" y="560" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#2a4a2a">// U1=ESP32-S3 · U2=MPU6050 · U3=MAX30102 · U4=DS18B20 · U5=INMP441 · U6=LMT70</text>
+    <text x="500" y="574" text-anchor="middle" font-family="'Share Tech Mono',monospace" font-size="8" fill="#2a4a2a">// IC1=TP4056 · IC2=LM1117 · J1=Solar · J2=LiPo · J3=Debug UART · SW1=Reset · SW2=Boot</text>
+
+  </svg>
+</div>
+
+<!-- Wiring Connection Tables -->
+<div class="sec">Pin Connection Reference</div>
+
+<div class="pwr-rail">
+  <div class="pwr-item"><div><div class="pwr-label">VCC RAIL</div><div class="pwr-val" style="color:var(--trace-r)">3.3V</div></div><span style="color:var(--muted);font-size:11px">LM1117 output → All ICs</span></div>
+  <div class="pwr-item"><div><div class="pwr-label">BATTERY</div><div class="pwr-val" style="color:var(--trace-o)">3.7V LiPo</div></div><span style="color:var(--muted);font-size:11px">1500mAh · TP4056 managed</span></div>
+  <div class="pwr-item"><div><div class="pwr-label">SOLAR IN</div><div class="pwr-val" style="color:var(--amber)">5V / 100mA</div></div><span style="color:var(--muted);font-size:11px">Flex panel → TP4056 VIN</span></div>
+  <div class="pwr-item"><div><div class="pwr-label">I²C PULLUPS</div><div class="pwr-val" style="color:var(--trace-b)">4.7kΩ</div></div><span style="color:var(--muted);font-size:11px">SDA + SCL to 3.3V</span></div>
+</div>
+
+<!-- Wiring groups -->
+<div class="wiring-grid">
+
+  <!-- I2C Bus -->
+  <div class="wire-group">
+    <div class="wg-header" style="background:rgba(68,136,255,0.08);color:var(--trace-b)">
+      <div class="dot" style="background:var(--trace-b)"></div>I²C BUS · GPIO4(SDA) · GPIO5(SCL)
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">MPU-6050 <span class="pin-badge">SDA</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-b)"></div><div class="wire-seg" style="background:var(--trace-b)"></div><div class="wire-dot" style="background:var(--trace-b)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO4</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">MPU-6050 <span class="pin-badge">SCL</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-b)"></div><div class="wire-seg" style="background:var(--trace-b)"></div><div class="wire-dot" style="background:var(--trace-b)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO5</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">MAX30102 <span class="pin-badge">SDA</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-b)"></div><div class="wire-seg" style="background:var(--trace-b)"></div><div class="wire-dot" style="background:var(--trace-b)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO4</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">MAX30102 <span class="pin-badge">SCL</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-b)"></div><div class="wire-seg" style="background:var(--trace-b)"></div><div class="wire-dot" style="background:var(--trace-b)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO5</span></div>
+    </div>
+    <div class="wire-row" style="background:rgba(68,136,255,0.04)">
+      <div class="pin-from" style="color:var(--muted)">I²C Addr MPU</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">0x68 (AD0=GND)</div>
+    </div>
+    <div class="wire-row" style="background:rgba(68,136,255,0.04)">
+      <div class="pin-from" style="color:var(--muted)">I²C Addr MAX</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">0x57 (fixed)</div>
+    </div>
+  </div>
+
+  <!-- 1-Wire -->
+  <div class="wire-group">
+    <div class="wg-header" style="background:rgba(255,204,0,0.08);color:var(--trace-y)">
+      <div class="dot" style="background:var(--trace-y)"></div>1-Wire Bus · GPIO18
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">DS18B20 <span class="pin-badge">DQ</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-y)"></div><div class="wire-seg" style="background:var(--trace-y)"></div><div class="wire-dot" style="background:var(--trace-y)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO18</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">DS18B20 <span class="pin-badge">VDD</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-r)"></div><div class="wire-seg" style="background:var(--trace-r)"></div><div class="wire-dot" style="background:var(--trace-r)"></div></div>
+      <div class="pin-to">3.3V Rail</div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">DS18B20 <span class="pin-badge">GND</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:#555"></div><div class="wire-seg" style="background:#555"></div><div class="wire-dot" style="background:#555"></div></div>
+      <div class="pin-to">GND Rail</div>
+    </div>
+    <div class="wire-row" style="background:rgba(255,204,0,0.04)">
+      <div class="pin-from" style="color:var(--muted)">Pull-up R1</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">4.7kΩ → 3.3V</div>
+    </div>
+  </div>
+
+  <!-- I2S Mic -->
+  <div class="wire-group">
+    <div class="wg-header" style="background:rgba(68,255,136,0.08);color:var(--trace-g)">
+      <div class="dot" style="background:var(--trace-g)"></div>I²S · INMP441 MEMS Mic
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">INMP441 <span class="pin-badge">WS</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-g)"></div><div class="wire-seg" style="background:var(--trace-g)"></div><div class="wire-dot" style="background:var(--trace-g)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO6</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">INMP441 <span class="pin-badge">SCK</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-g)"></div><div class="wire-seg" style="background:var(--trace-g)"></div><div class="wire-dot" style="background:var(--trace-g)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO7</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">INMP441 <span class="pin-badge">SD</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-g)"></div><div class="wire-seg" style="background:var(--trace-g)"></div><div class="wire-dot" style="background:var(--trace-g)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO8</span></div>
+    </div>
+    <div class="wire-row" style="background:rgba(68,255,136,0.04)">
+      <div class="pin-from" style="color:var(--muted)">L/R Select</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">GND = Left Ch</div>
+    </div>
+  </div>
+
+  <!-- ADC LMT70 -->
+  <div class="wire-group">
+    <div class="wg-header" style="background:rgba(255,136,0,0.08);color:var(--trace-o)">
+      <div class="dot" style="background:var(--trace-o)"></div>ADC · LMT70 Estrus Probe
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">LMT70 <span class="pin-badge">VOUT</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-o)"></div><div class="wire-seg" style="background:var(--trace-o)"></div><div class="wire-dot" style="background:var(--trace-o)"></div></div>
+      <div class="pin-to">ESP32 <span class="pin-badge">GPIO9/ADC1</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">LMT70 <span class="pin-badge">VCC</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-r)"></div><div class="wire-seg" style="background:var(--trace-r)"></div><div class="wire-dot" style="background:var(--trace-r)"></div></div>
+      <div class="pin-to">3.3V Rail</div>
+    </div>
+    <div class="wire-row" style="background:rgba(255,136,0,0.04)">
+      <div class="pin-from" style="color:var(--muted)">Filter Cap</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">100nF to GND</div>
+    </div>
+    <div class="wire-row" style="background:rgba(255,136,0,0.04)">
+      <div class="pin-from" style="color:var(--muted)">Output range</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">0.3V–1.7V analog</div>
+    </div>
+  </div>
+
+  <!-- Power -->
+  <div class="wire-group">
+    <div class="wg-header" style="background:rgba(255,68,68,0.08);color:var(--trace-r)">
+      <div class="dot" style="background:var(--trace-r)"></div>Power Chain · Solar → Battery → 3.3V
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">Solar Panel <span class="pin-badge">+</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-r)"></div><div class="wire-seg" style="background:var(--trace-r)"></div><div class="wire-dot" style="background:var(--trace-r)"></div></div>
+      <div class="pin-to">TP4056 <span class="pin-badge">VIN</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">TP4056 <span class="pin-badge">VBAT</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-o)"></div><div class="wire-seg" style="background:var(--trace-o)"></div><div class="wire-dot" style="background:var(--trace-o)"></div></div>
+      <div class="pin-to">LiPo <span class="pin-badge">+</span> & LM1117 <span class="pin-badge">VIN</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">LM1117 <span class="pin-badge">VOUT</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-r)"></div><div class="wire-seg" style="background:var(--trace-r)"></div><div class="wire-dot" style="background:var(--trace-r)"></div></div>
+      <div class="pin-to">3.3V Bus → All ICs</div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">ESP32 <span class="pin-badge">3V3</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-r)"></div><div class="wire-seg" style="background:var(--trace-r)"></div><div class="wire-dot" style="background:var(--trace-r)"></div></div>
+      <div class="pin-to">3.3V Rail</div>
+    </div>
+  </div>
+
+  <!-- UART Debug -->
+  <div class="wire-group">
+    <div class="wg-header" style="background:rgba(204,68,255,0.08);color:var(--trace-p)">
+      <div class="dot" style="background:var(--trace-p)"></div>UART · Debug Header J3
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">ESP32 <span class="pin-badge">GPIO43/TX</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-p)"></div><div class="wire-seg" style="background:var(--trace-p)"></div><div class="wire-dot" style="background:var(--trace-p)"></div></div>
+      <div class="pin-to">J3 <span class="pin-badge">TX</span></div>
+    </div>
+    <div class="wire-row">
+      <div class="pin-from">ESP32 <span class="pin-badge">GPIO44/RX</span></div>
+      <div class="wire-line"><div class="wire-dot" style="background:var(--trace-p)"></div><div class="wire-seg" style="background:var(--trace-p)"></div><div class="wire-dot" style="background:var(--trace-p)"></div></div>
+      <div class="pin-to">J3 <span class="pin-badge">RX</span></div>
+    </div>
+    <div class="wire-row" style="background:rgba(204,68,255,0.04)">
+      <div class="pin-from" style="color:var(--muted)">Baud rate</div>
+      <div class="wire-line"><div class="wire-seg" style="background:var(--muted);width:40px"></div></div>
+      <div class="pin-to" style="color:var(--muted)">115200 bps</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Design Notes -->
+<div class="notes">
+  <div class="note-line"><span><strong>PCB LAYERS:</strong> 4-layer board recommended · Layer 1=Signal · Layer 2=GND pour · Layer 3=3V3 pour · Layer 4=Signal</span></div>
+  <div class="note-line"><span><strong>DECOUPLING:</strong> 100nF ceramic cap on every IC VCC pin · 10µF bulk cap near LM1117 output</span></div>
+  <div class="note-line"><span><strong>I²C PULLUPS:</strong> Single 4.7kΩ on SDA + SCL sufficient for 2 devices at 400kHz fast mode</span></div>
+  <div class="note-line"><span><strong>ADC NOISE:</strong> Place 100nF cap between LMT70 VOUT and GND close to GPIO9 pin · Ground pour under analog section</span></div>
+  <div class="note-line"><span><strong>ANTENNA KEEPOUT:</strong> No copper pour, vias or traces under ESP32-S3 antenna area (marked on module datasheet)</span></div>
+  <div class="note-line"><span><strong>WATERPROOFING:</strong> Conformal coat entire PCB · Use sealed probe connectors (JST-GH) for DS18B20 and LMT70 external probes</span></div>
+  <div class="note-line"><span><strong>PCB SIZE:</strong> Target 60mm × 40mm to fit inside collar housing · All connectors on one edge for easy assembly</span></div>
+  <div class="note-line"><span><strong>BATTERY PROTECTION:</strong> TP4056 module includes over-charge, over-discharge and short circuit protection built-in</span></div>
+</div>
+
+</div>
+</body>
+</html>

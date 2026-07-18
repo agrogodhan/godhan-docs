@@ -1,0 +1,13 @@
+npmjs.com
+----------
+npm login
+
+username: godhan
+password: Sh@s!n12345
+email: agrogodhan@gmail.com/Shashank@1
+
+npm publish --access public
+
+agrogodhan_db_user/HfwAWgp4mSw9S8w6
+
+mongodb+srv://agrogodhan_db_user:HfwAWgp4mSw9S8w6@cluster0.r8ozmfe.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0

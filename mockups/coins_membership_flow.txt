@@ -1,0 +1,92 @@
+# Jira Document – Godhan App
+
+---
+
+## Epic: Insemination & Calving Lifecycle
+**As a farmer, I want to record inseminations, track pregnancy, and get reminders for calving, so that I can manage cattle health and milk yield.**
+
+---
+
+### Story 1: Record Insemination
+- **As a** farmer  
+- **When** I select a cattle (14–16 months+) and tap “Add Insemination”  
+- **Then** I should be able to enter insemination date, bull details, and notes  
+
+**Acceptance Criteria:**  
+- [ ] Form captures insemination date, bull details.  
+- [ ] Timeline entry created in cattle profile.  
+- [ ] Pregnancy confirmation reminder scheduled at +75 days.  
+
+---
+
+### Story 2: Confirm Pregnancy
+- **As a** farmer  
+- **When** I get a reminder (70–90 days)  
+- **Then** I can mark cattle as Pregnant or Not Pregnant  
+
+**Acceptance Criteria:**  
+- [ ] If marked Pregnant → Expected Calving Date auto-calculated.  
+- [ ] If Not Pregnant → status updated, retry option shown.  
+- [ ] Notification scheduled: 6-month care + 1-week calving reminder.  
+
+---
+
+### Story 3: Auto Calculate Expected Calving Date
+- **As a** system  
+- **When** pregnancy is confirmed  
+- **Then** calculate expected calving date using gestation (283 days cow, 310 buffalo, etc).  
+
+**Acceptance Criteria:**  
+- [ ] Expected date displayed on insemination tab.  
+- [ ] Badge shows “Calving due in X days”.  
+- [ ] Farmer can see exact due date.  
+
+---
+
+### Story 4: 6-Month Pregnancy Care Plan
+- **As a** farmer  
+- **When** cattle reaches 6 months pregnancy  
+- **Then** I get a notification with care plan  
+
+**Acceptance Criteria:**  
+- [ ] Notification delivered.  
+- [ ] Care plan checklist visible (nutrition, housing, vet, supplies).  
+- [ ] Farmer can tick off items and save progress.  
+- [ ] If cattle is still milking, show reminder: “Stop milking 90 days before calving.”  
+
+---
+
+### Story 5: 1-Week Pre-Calving Reminder
+- **As a** farmer  
+- **When** calving is 1 week away  
+- **Then** I should get a preparation checklist  
+
+**Acceptance Criteria:**  
+- [ ] Notification delivered with exact due date.  
+- [ ] Checklist includes vet readiness, supplies, pen cleaning.  
+- [ ] Farmer can mark “Ready for calving”.  
+
+---
+
+### Story 6: Record Calving Event
+- **As a** farmer  
+- **When** calving happens  
+- **Then** I can record delivery, calf details, and health outcome  
+
+**Acceptance Criteria:**  
+- [ ] Form captures calving date, calf tag, gender, weight, notes.  
+- [ ] Newborn calf profile auto-created & linked.  
+- [ ] Cattle status changes to “Lactation 1 Active”.  
+
+---
+
+### Story 7: Notifications & Dry Period Reminder
+- **As a** system  
+- **When** cattle enters 6–7 months pregnancy and still marked as milking  
+- **Then** send reminder to dry it off  
+
+**Acceptance Criteria:**  
+- [ ] Notification shows “Stop milking for next 90 days to improve yield in next lactation”.  
+- [ ] Farmer can mark “Stopped milking” as confirmation.  
+
+---

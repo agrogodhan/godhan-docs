@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CattleCare — Farmer App UI Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream:   #f5f0e8;
+  --cream2:  #ede6d6;
+  --earth:   #2c1f0e;
+  --soil:    #3d2b14;
+  --bark:    #5c3d1e;
+  --moss:    #2d4a2d;
+  --leaf:    #3a6b3a;
+  --sprout:  #5a9e5a;
+  --grass:   #7ec47e;
+  --sun:     #e8a030;
+  --amber:   #c97d20;
+  --sky:     #4a90c4;
+  --red:     #d94f4f;
+  --muted:   #8a7a6a;
+  --border:  #d8cfc0;
+  --card:    #ffffff;
+  --shadow:  rgba(44,31,14,0.10);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: #1a1208;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px 60px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(90,158,90,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(232,160,48,0.08) 0%, transparent 50%);
+  pointer-events:none; z-index:0;
+}
+
+/* ── Page title ── */
+.page-title {
+  text-align: center;
+  margin-bottom: 36px;
+  position: relative; z-index:1;
+}
+.page-title h1 {
+  font-family: 'Fraunces', serif;
+  font-size: clamp(28px,5vw,42px);
+  font-weight: 700;
+  color: var(--cream);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.page-title h1 em { color: var(--grass); font-style: normal; }
+.page-title p {
+  font-size: 13px;
+  color: rgba(245,240,232,0.45);
+  margin-top: 8px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Screens gallery ── */
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  justify-content: center;
+  position: relative; z-index:1;
+  max-width: 1300px;
+  width: 100%;
+}
+
+/* ── Phone shell ── */
+.phone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.phone-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: rgba(245,240,232,0.35);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.phone-shell {
+  width: 320px;
+  background: #0e0c08;
+  border-radius: 44px;
+  padding: 14px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.07),
+    0 30px 80px rgba(0,0,0,0.7),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  position: relative;
+}
+.phone-shell::before {
+  content:'';
+  position:absolute;
+  top: 16px; left: 50%; transform: translateX(-50%);
+  width: 90px; height: 28px;
+  background: #0e0c08;
+  border-radius: 20px;
+  z-index: 10;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+.screen {
+  background: var(--cream);
+  border-radius: 32px;
+  overflow: hidden;
+  width: 292px;
+  height: 630px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Status bar ── */
+.status-bar {
+  background: var(--cream);
+  padding: 48px 20px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--earth);
+  flex-shrink: 0;
+}
+.status-icons { display:flex; gap:5px; align-items:center; font-size:10px; }
+
+/* ── Scrollable content ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  padding-bottom: 70px;
+}
+.content::-webkit-scrollbar { display: none; }
+
+/* ── Bottom nav ── */
+.bottom-nav {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 68px;
+  background: rgba(255,252,245,0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 8px 12px;
+  z-index: 20;
+}
+.nav-item {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 3px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  flex: 1;
+}
+.nav-item.active { background: rgba(45,74,45,0.08); }
+.nav-icon { font-size: 20px; line-height: 1; }
+.nav-label {
+  font-size: 9px; font-weight: 500;
+  color: var(--muted); letter-spacing: 0.3px;
+}
+.nav-item.active .nav-label { color: var(--moss); font-weight: 600; }
+
+/* =============================================
+   SCREEN 1: DASHBOARD
+   ============================================= */
+.dash-header {
+  background: linear-gradient(160deg, var(--moss) 0%, #1e3a1e 100%);
+  padding: 16px 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+.dash-header::before {
+  content:'';
+  position:absolute; top:-30px; right:-30px;
+  width:120px; height:120px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.04);
+}
+.dash-header::after {
+  content:'';
+  position:absolute; bottom:-20px; left:30px;
+  width:80px; height:80px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.03);
+}
+.dash-greeting {
+  font-family: 'Fraunces', serif;
+  font-size: 22px; font-weight: 700;
+  color: var(--cream); line-height: 1.2;
+}
+.dash-greeting span { color: var(--grass); }
+.dash-date {
+  font-size: 11px; color: rgba(245,240,232,0.55);
+  margin-top: 3px;
+}
+.dash-weather {
+  margin-top: 12px;
+  display: flex; gap: 16px;
+}
+.weather-pill {
+  background: rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 11px; color: var(--cream);
+  display: flex; align-items: center; gap: 5px;
+}
+
+.dash-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 16px 14px 4px;
+}
+.stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 2px 12px var(--shadow);
+  position: relative; overflow: hidden;
+}
+.stat-card::after {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:3px;
+  border-radius:16px 16px 0 0;
+}
+.stat-card.green::after  { background: var(--sprout); }
+.stat-card.amber::after  { background: var(--sun); }
+.stat-card.red::after    { background: var(--red); }
+.stat-card.sky::after    { background: var(--sky); }
+
+.stat-emoji { font-size: 22px; margin-bottom: 6px; display:block; }
+.stat-val {
+  font-family: 'Fraunces', serif;
+  font-size: 26px; font-weight: 700;
+  color: var(--earth); line-height: 1;
+}
+.stat-label { font-size: 10px; color: var(--muted); margin-top: 3px; font-weight: 500; }
+.stat-sub   { font-size: 9px; color: var(--muted); margin-top: 2px; }
+
+.section-head {
+  padding: 16px 14px 8px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-size: 15px; font-weight: 700; color: var(--earth);
+}
+.section-link { font-size: 11px; color: var(--leaf); font-weight: 600; }
+
+/* Alert cards */
+.alert-card {
+  margin: 0 14px 8px;
+  background: white;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 2px 8px var(--shadow);
+  border-left: 3px solid transparent;
+}
+.alert-card.critical { border-color: var(--red); }
+.alert-card.warning  { border-color: var(--sun); }
+.alert-card.info     { border-color: var(--sky); }
+.alert-dot {
+  width: 32px; height: 32px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink:0;
+}
+.alert-card.critical .alert-dot { background: rgba(217,79,79,0.12); }
+.alert-card.warning  .alert-dot { background: rgba(232,160,48,0.12); }
+.alert-card.info     .alert-dot { background: rgba(74,144,196,0.12); }
+.alert-title { font-size: 12px; font-weight: 600; color: var(--earth); }
+.alert-sub   { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.alert-time  { font-size: 9px; color: var(--muted); margin-left: auto; flex-shrink:0; }
+
+/* Zone bar */
+.zone-card {
+  margin: 0 14px 8px;
+  background: white;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.zone-label-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--muted); margin-bottom: 8px;
+}
+.zone-bar {
+  height: 10px; border-radius: 10px;
+  background: var(--cream2);
+  overflow: hidden; display: flex;
+}
+.zone-fill {
+  height: 100%; border-radius: 10px;
+  display: flex;
+}
+.zone-shed { background: var(--moss); flex: 60; }
+.zone-open { background: var(--grass); flex: 40; }
+.zone-legend {
+  display: flex; gap: 12px; margin-top: 8px;
+}
+.zl-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+.zl-dot  { width:8px; height:8px; border-radius:50%; }
+
+/* =============================================
+   SCREEN 2: HERD LIST
+   ============================================= */
+.herd-header {
+  padding: 12px 14px 10px;
+  background: var(--cream);
+}
+.herd-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px; font-weight: 700; color: var(--earth);
+}
+.herd-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.search-bar {
+  margin: 8px 14px;
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 14px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted);
+  box-shadow: 0 1px 4px var(--shadow);
+}
+
+.filter-row {
+  display: flex; gap: 7px;
+  padding: 4px 14px 10px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.filter-pill {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 10px; font-weight: 600;
+  color: var(--muted); white-space: nowrap;
+  flex-shrink: 0;
+}
+.filter-pill.active {
+  background: var(--moss); color: white; border-color: var(--moss);
+}
+
+.cow-card {
+  margin: 0 14px 8px;
+  background: white;
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.cow-avatar {
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink:0;
+}
+.cow-avatar.healthy { background: rgba(90,158,90,0.12); }
+.cow-avatar.alert   { background: rgba(217,79,79,0.10); }
+.cow-avatar.warn    { background: rgba(232,160,48,0.10); }
+.cow-avatar.estrus  { background: rgba(74,144,196,0.12); }
+.cow-name { font-size: 13px; font-weight: 600; color: var(--earth); }
+.cow-id   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.cow-vitals {
+  display: flex; gap: 8px; margin-top: 4px;
+  flex-wrap: wrap;
+}
+.vital-chip {
+  background: var(--cream);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 9px; font-weight: 600; color: var(--muted);
+  display: flex; align-items: center; gap: 3px;
+}
+.vital-chip.ok    { color: var(--leaf); }
+.vital-chip.alert { color: var(--red); background: rgba(217,79,79,0.08); }
+.vital-chip.warn  { color: var(--amber); background: rgba(232,160,48,0.08); }
+
+.cow-right { margin-left: auto; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.health-ring {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.health-ring.high   { background: rgba(90,158,90,0.15); color: var(--leaf); border: 2px solid var(--sprout); }
+.health-ring.medium { background: rgba(232,160,48,0.15); color: var(--amber); border: 2px solid var(--sun); }
+.health-ring.low    { background: rgba(217,79,79,0.15); color: var(--red); border: 2px solid var(--red); }
+.cow-zone { font-size: 9px; color: var(--muted); }
+
+/* =============================================
+   SCREEN 3: COW DETAIL
+   ============================================= */
+.cow-detail-header {
+  background: linear-gradient(160deg, var(--leaf) 0%, var(--moss) 100%);
+  padding: 14px 16px 20px;
+  position: relative;
+}
+.back-btn {
+  font-size: 18px; color: rgba(245,240,232,0.7);
+  margin-bottom: 10px; display: block;
+}
+.cd-top {
+  display: flex; align-items: center; gap: 14px;
+}
+.cd-avatar {
+  width: 56px; height: 56px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px;
+}
+.cd-name {
+  font-family: 'Fraunces', serif;
+  font-size: 20px; font-weight: 700; color: white;
+}
+.cd-meta { font-size: 11px; color: rgba(245,240,232,0.65); margin-top: 2px; }
+.cd-tags { display:flex; gap:6px; margin-top:8px; }
+.cd-tag {
+  background: rgba(255,255,255,0.15);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 10px; color: white; font-weight: 500;
+}
+.cd-tag.alert-tag { background: rgba(217,79,79,0.4); }
+
+/* Health score ring */
+.health-score-section {
+  padding: 16px 14px 8px;
+  display: flex; align-items: center; gap: 16px;
+}
+.hs-ring-wrap {
+  position: relative; width: 72px; height: 72px; flex-shrink:0;
+}
+.hs-ring-wrap svg { transform: rotate(-90deg); }
+.hs-center {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+}
+.hs-num {
+  font-family: 'Fraunces', serif;
+  font-size: 20px; font-weight: 700; color: var(--earth);
+}
+.hs-label { font-size: 8px; color: var(--muted); font-weight: 500; }
+.hs-right { flex: 1; }
+.hs-title {
+  font-family: 'Fraunces', serif;
+  font-size: 15px; font-weight: 700; color: var(--earth);
+}
+.hs-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.hs-updated { font-size: 10px; color: var(--muted); margin-top: 6px; }
+
+/* Vitals grid */
+.vitals-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; padding: 0 14px 4px;
+}
+.vg-card {
+  background: white;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.vg-icon { font-size: 18px; margin-bottom: 4px; display:block; }
+.vg-val {
+  font-family: 'Fraunces', serif;
+  font-size: 20px; font-weight: 700; color: var(--earth);
+  display: flex; align-items: baseline; gap: 3px;
+}
+.vg-unit { font-size: 11px; color: var(--muted); font-family: 'DM Sans', sans-serif; }
+.vg-label { font-size: 9px; color: var(--muted); margin-top: 2px; font-weight: 500; }
+.vg-status {
+  font-size: 9px; font-weight: 600;
+  margin-top: 4px; padding: 2px 6px;
+  border-radius: 6px; display:inline-block;
+}
+.vg-status.ok   { background: rgba(90,158,90,0.12); color: var(--leaf); }
+.vg-status.warn { background: rgba(232,160,48,0.12); color: var(--amber); }
+.vg-status.bad  { background: rgba(217,79,79,0.10); color: var(--red); }
+
+/* Mini chart */
+.mini-chart {
+  margin: 4px 14px 8px;
+  background: white;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.mc-header {
+  display: flex; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.mc-title { font-size: 12px; font-weight: 600; color: var(--earth); }
+.mc-range { font-size: 10px; color: var(--muted); }
+.chart-area {
+  height: 60px; position: relative;
+  display: flex; align-items: flex-end; gap: 3px;
+}
+.chart-bar {
+  flex: 1; border-radius: 4px 4px 0 0;
+  background: var(--cream2);
+  min-height: 4px;
+  transition: background 0.2s;
+}
+.chart-bar.today { background: var(--sprout); }
+.chart-bar.alert { background: var(--red); }
+.chart-bar.warn  { background: var(--sun); }
+.chart-line-svg  { position:absolute; inset:0; width:100%; height:100%; }
+
+/* Repro card */
+.repro-card {
+  margin: 0 14px 8px;
+  background: linear-gradient(135deg, rgba(74,144,196,0.08), rgba(74,144,196,0.04));
+  border: 1.5px solid rgba(74,144,196,0.25);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.rc-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.rc-icon { font-size: 20px; }
+.rc-title { font-size: 12px; font-weight: 600; color: var(--earth); }
+.rc-sub   { font-size: 10px; color: var(--muted); }
+.rc-timeline { display: flex; gap: 0; }
+.rc-step {
+  flex: 1; text-align: center; position: relative;
+}
+.rc-step::after {
+  content:'';
+  position:absolute; top:10px; left:50%; right:-50%;
+  height:2px; background: var(--border);
+  z-index:0;
+}
+.rc-step:last-child::after { display:none; }
+.rc-dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--border); border: 2px solid white;
+  margin: 0 auto 4px;
+  position: relative; z-index:1;
+  display:flex; align-items:center; justify-content:center;
+  font-size: 8px;
+}
+.rc-dot.done  { background: var(--sky); color: white; }
+.rc-dot.now   { background: var(--sun); color: white; border: 2px solid var(--sun); box-shadow: 0 0 0 3px rgba(232,160,48,0.2); }
+.rc-step-label { font-size: 8px; color: var(--muted); }
+
+/* =============================================
+   SCREEN 4: ALERTS
+   ============================================= */
+.alerts-header {
+  padding: 12px 14px 10px;
+}
+.alerts-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px; font-weight: 700; color: var(--earth);
+}
+.alerts-count {
+  display: inline-flex; align-items:center; gap:5px;
+  background: rgba(217,79,79,0.10);
+  border-radius: 20px; padding: 3px 10px;
+  font-size: 10px; font-weight: 600; color: var(--red);
+  margin-top: 4px;
+}
+
+.alert-full-card {
+  margin: 0 14px 10px;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px var(--shadow);
+}
+.afc-top {
+  padding: 12px 14px;
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.afc-badge {
+  width: 36px; height: 36px; border-radius: 12px;
+  display:flex; align-items:center; justify-content:center;
+  font-size: 18px; flex-shrink:0;
+}
+.afc-badge.critical { background: rgba(217,79,79,0.12); }
+.afc-badge.warning  { background: rgba(232,160,48,0.12); }
+.afc-badge.info     { background: rgba(74,144,196,0.12); }
+.afc-title  { font-size: 13px; font-weight: 600; color: var(--earth); }
+.afc-msg    { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.afc-meta   { display:flex; gap:8px; margin-top:6px; align-items:center; flex-wrap:wrap; }
+.afc-cow    { font-size: 10px; font-weight: 600; color: var(--leaf); }
+.afc-time   { font-size: 9px; color: var(--muted); }
+.afc-sev {
+  font-size: 9px; font-weight: 700; padding: 1px 7px;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.afc-sev.critical { background: rgba(217,79,79,0.12); color: var(--red); }
+.afc-sev.warning  { background: rgba(232,160,48,0.12); color: var(--amber); }
+.afc-sev.info     { background: rgba(74,144,196,0.12); color: var(--sky); }
+
+.afc-actions {
+  border-top: 1px solid var(--cream2);
+  padding: 8px 14px;
+  display: flex; gap: 8px;
+}
+.afc-btn {
+  flex:1; padding: 7px;
+  border-radius: 10px; border: none;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer; text-align: center;
+}
+.afc-btn.primary   { background: var(--moss); color: white; }
+.afc-btn.secondary { background: var(--cream); color: var(--muted); border: 1px solid var(--border); }
+
+/* =============================================
+   SCREEN 5: BLE SETUP
+   ============================================= */
+.ble-header {
+  background: linear-gradient(160deg, #1a2f4a 0%, #0e1d30 100%);
+  padding: 14px 16px 24px;
+}
+.ble-h-title {
+  font-family: 'Fraunces', serif;
+  font-size: 20px; font-weight: 700; color: white;
+  margin-top: 6px;
+}
+.ble-h-sub { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 3px; }
+
+.ble-step-card {
+  margin: 12px 14px 0;
+  background: white;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.ble-sc-title { font-size: 13px; font-weight: 600; color: var(--earth); margin-bottom: 12px; display:flex; align-items:center; gap:8px; }
+.ble-sc-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--moss); color: white;
+  font-size: 11px; font-weight: 700;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.ble-sc-num.done { background: var(--sprout); }
+
+/* Scanning animation */
+.ble-scan-area {
+  margin: 12px 14px 0;
+  background: white;
+  border-radius: 16px;
+  padding: 20px 14px;
+  box-shadow: 0 2px 8px var(--shadow);
+  text-align: center;
+}
+.ble-pulse {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: rgba(74,144,196,0.12);
+  border: 2px solid rgba(74,144,196,0.3);
+  margin: 0 auto 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  position: relative;
+}
+.ble-pulse::before, .ble-pulse::after {
+  content:'';
+  position:absolute; inset:-12px; border-radius:50%;
+  border: 1.5px solid rgba(74,144,196,0.2);
+  animation: pulse 2s ease-out infinite;
+}
+.ble-pulse::after { animation-delay: 1s; }
+@keyframes pulse {
+  0%   { transform: scale(0.9); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0;   }
+}
+.ble-scan-title { font-size: 13px; font-weight: 600; color: var(--earth); }
+.ble-scan-sub   { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+.ble-device-found {
+  margin: 8px 14px 0;
+  background: rgba(90,158,90,0.06);
+  border: 1.5px solid rgba(90,158,90,0.3);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.bdf-icon {
+  width: 38px; height: 38px; border-radius: 12px;
+  background: rgba(90,158,90,0.12);
+  display:flex; align-items:center; justify-content:center;
+  font-size: 20px; flex-shrink:0;
+}
+.bdf-name { font-size: 13px; font-weight: 600; color: var(--earth); }
+.bdf-id   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
+.bdf-connect {
+  margin-left: auto;
+  background: var(--moss); color: white;
+  border: none; border-radius: 10px;
+  padding: 7px 12px; font-size: 11px; font-weight: 600;
+  cursor: pointer; flex-shrink:0;
+}
+
+.wifi-send-card {
+  margin: 8px 14px 0;
+  background: white;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.wsc-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--cream2);
+}
+.wsc-row:last-child { border-bottom: none; }
+.wsc-icon { font-size: 16px; width: 24px; text-align: center; }
+.wsc-label { font-size: 11px; color: var(--muted); flex:1; }
+.wsc-val   { font-size: 11px; font-weight: 600; color: var(--earth); font-family:'DM Mono',monospace; }
+.wsc-check { font-size: 14px; }
+
+.send-btn {
+  margin: 12px 14px 0;
+  background: linear-gradient(135deg, var(--sky), #3a7ab0);
+  color: white; border: none;
+  border-radius: 14px; padding: 14px;
+  width: calc(100% - 28px);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+  box-shadow: 0 4px 16px rgba(74,144,196,0.35);
+}
+
+/* =============================================
+   SHARED COMPONENTS
+   ============================================= */
+.divider {
+  height: 1px; background: var(--border);
+  margin: 0 14px 8px;
+}
+
+.label-row {
+  padding: 14px 14px 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 2px;
+  color: var(--muted); text-transform: uppercase;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--cream2) 25%, var(--cream) 50%, var(--cream2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>🐄 CattleCare <em>App</em></h1>
+  <p>Farmer Mobile App UI Mockup · 5 Screens · iOS / Android</p>
+</div>
+
+<div class="gallery">
+
+<!-- ═══════════════════════════════
+     SCREEN 1: DASHBOARD
+════════════════════════════════ -->
+<div class="phone">
+  <div class="phone-shell">
+    <div class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons">
+          <span>●●●●</span><span>WiFi</span><span>🔋</span>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Header -->
+        <div class="dash-header">
+          <div class="dash-greeting">Good morning,<br><span>Rajesh Ji 🙏</span></div>
+          <div class="dash-date">Wednesday, 15 April 2026</div>
+          <div class="dash-weather">
+            <div class="weather-pill">☀️ 28°C</div>
+            <div class="weather-pill">💧 Humidity 62%</div>
+          </div>
+        </div>
+
+        <!-- Stats grid -->
+        <div class="dash-stats">
+          <div class="stat-card green">
+            <span class="stat-emoji">🐄</span>
+            <div class="stat-val">118</div>
+            <div class="stat-label">Active Cattle</div>
+            <div class="stat-sub">2 in shed · rest open</div>
+          </div>
+          <div class="stat-card red">
+            <span class="stat-emoji">⚠️</span>
+            <div class="stat-val">7</div>
+            <div class="stat-label">Active Alerts</div>
+            <div class="stat-sub">2 critical · 5 warnings</div>
+          </div>
+          <div class="stat-card sky">
+            <span class="stat-emoji">🌸</span>
+            <div class="stat-val">3</div>
+            <div class="stat-label">In Heat (Estrus)</div>
+            <div class="stat-sub">Breeding window open</div>
+          </div>
+          <div class="stat-card amber">
+            <span class="stat-emoji">🤰</span>
+            <div class="stat-val">1</div>
+            <div class="stat-label">Calving Soon</div>
+            <div class="stat-sub">COW-047 — today</div>
+          </div>
+        </div>
+
+        <!-- Zone distribution -->
+        <div class="section-head">
+          <div class="section-title">Zone Distribution</div>
+        </div>
+        <div class="zone-card">
+          <div class="zone-label-row">
+            <span>Shed Area</span>
+            <span>Open Area</span>
+          </div>
+          <div class="zone-bar">
+            <div class="zone-fill">
+              <div class="zone-shed"></div>
+              <div class="zone-open"></div>
+            </div>
+          </div>
+          <div class="zone-legend">
+            <div class="zl-item"><div class="zl-dot" style="background:var(--moss)"></div>70 in shed</div>
+            <div class="zl-item"><div class="zl-dot" style="background:var(--grass)"></div>48 in open</div>
+          </div>
+        </div>
+
+        <!-- Recent Alerts -->
+        <div class="section-head">
+          <div class="section-title">Recent Alerts</div>
+          <div class="section-link">See all →</div>
+        </div>
+
+        <div class="alert-card critical">
+          <div class="alert-dot">🌡️</div>
+          <div>
+            <div class="alert-title">Fever Detected</div>
+            <div class="alert-sub">COW-112 · 40.1°C · Needs attention</div>
+          </div>
+          <div class="alert-time">2m ago</div>
+        </div>
+
+        <div class="alert-card info">
+          <div class="alert-dot">🌸</div>
+          <div>
+            <div class="alert-title">Estrus Detected</div>
+            <div class="alert-sub">COW-085 · Breeding window: 12–18h</div>
+          </div>
+          <div class="alert-time">14m</div>
+        </div>
+
+        <div class="alert-card warning">
+          <div class="alert-dot">🔋</div>
+          <div>
+            <div class="alert-title">Low Battery</div>
+            <div class="alert-sub">COLLAR-A1B2C3 · 12% remaining</div>
+          </div>
+          <div class="alert-time">1h ago</div>
+        </div>
+
+        <!-- Avg herd health -->
+        <div class="section-head">
+          <div class="section-title">Herd Health Avg</div>
+        </div>
+        <div class="zone-card">
+          <div style="display:flex;gap:8px;justify-content:space-between;">
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--earth)">38.7°</div>
+              <div style="font-size:9px;color:var(--muted)">Avg Temp</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--earth)">66</div>
+              <div style="font-size:9px;color:var(--muted)">Avg BPM</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--earth)">96%</div>
+              <div style="font-size:9px;color:var(--muted)">Avg SpO₂</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--earth)">88</div>
+              <div style="font-size:9px;color:var(--muted)">Health Score</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- content -->
+
+      <!-- Bottom nav -->
+      <div class="bottom-nav">
+        <div class="nav-item active"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+        <div class="nav-item"><div class="nav-icon">🐄</div><div class="nav-label">Herd</div></div>
+        <div class="nav-item"><div class="nav-icon">⚠️</div><div class="nav-label">Alerts</div></div>
+        <div class="nav-item"><div class="nav-icon">📡</div><div class="nav-label">Devices</div></div>
+        <div class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-label">01 · Dashboard</div>
+</div>
+
+<!-- ═══════════════════════════════
+     SCREEN 2: HERD LIST
+════════════════════════════════ -->
+<div class="phone">
+  <div class="phone-shell">
+    <div class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons"><span>●●●●</span><span>🔋</span></div>
+      </div>
+
+      <div class="content">
+        <div class="herd-header">
+          <div class="herd-title">My Herd</div>
+          <div class="herd-sub">118 active cattle · 4 need attention</div>
+        </div>
+
+        <div class="search-bar">
+          <span>🔍</span>
+          <span>Search by name, ID or tag...</span>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-pill active">All (118)</div>
+          <div class="filter-pill">⚠️ Alerts (4)</div>
+          <div class="filter-pill">🌸 Estrus (3)</div>
+          <div class="filter-pill">🤰 Calving (1)</div>
+          <div class="filter-pill">🏠 Shed</div>
+          <div class="filter-pill">🌿 Open</div>
+        </div>
+
+        <div class="cow-card">
+          <div class="cow-avatar alert">🐄</div>
+          <div style="flex:1">
+            <div class="cow-name">Laxmi</div>
+            <div class="cow-id">COW-112 · Tag E014</div>
+            <div class="cow-vitals">
+              <div class="vital-chip alert">🌡️ 40.1°C</div>
+              <div class="vital-chip ok">❤️ 72bpm</div>
+              <div class="vital-chip ok">🩸 96%</div>
+            </div>
+          </div>
+          <div class="cow-right">
+            <div class="health-ring low">62</div>
+            <div class="cow-zone">🏠 Shed</div>
+          </div>
+        </div>
+
+        <div class="cow-card">
+          <div class="cow-avatar estrus">🐄</div>
+          <div style="flex:1">
+            <div class="cow-name">Ganga</div>
+            <div class="cow-id">COW-085 · Tag F022</div>
+            <div class="cow-vitals">
+              <div class="vital-chip ok">🌡️ 38.9°C</div>
+              <div class="vital-chip ok">❤️ 68bpm</div>
+              <div class="vital-chip">🌸 Estrus</div>
+            </div>
+          </div>
+          <div class="cow-right">
+            <div class="health-ring medium">78</div>
+            <div class="cow-zone">🌿 Open</div>
+          </div>
+        </div>
+
+        <div class="cow-card">
+          <div class="cow-avatar warn">🐄</div>
+          <div style="flex:1">
+            <div class="cow-name">Savitri</div>
+            <div class="cow-id">COW-047 · Tag B009</div>
+            <div class="cow-vitals">
+              <div class="vital-chip ok">🌡️ 38.4°C</div>
+              <div class="vital-chip warn">🤰 Calving!</div>
+              <div class="vital-chip ok">❤️ 74bpm</div>
+            </div>
+          </div>
+          <div class="cow-right">
+            <div class="health-ring medium">81</div>
+            <div class="cow-zone">🏠 Shed</div>
+          </div>
+        </div>
+
+        <div class="cow-card">
+          <div class="cow-avatar healthy">🐄</div>
+          <div style="flex:1">
+            <div class="cow-name">Kamla</div>
+            <div class="cow-id">COW-033 · Tag A017</div>
+            <div class="cow-vitals">
+              <div class="vital-chip ok">🌡️ 38.6°C</div>
+              <div class="vital-chip ok">❤️ 64bpm</div>
+              <div class="vital-chip ok">🩸 97%</div>
+            </div>
+          </div>
+          <div class="cow-right">
+            <div class="health-ring high">94</div>
+            <div class="cow-zone">🌿 Open</div>
+          </div>
+        </div>
+
+        <div class="cow-card">
+          <div class="cow-avatar healthy">🐄</div>
+          <div style="flex:1">
+            <div class="cow-name">Radha</div>
+            <div class="cow-id">COW-061 · Tag C031</div>
+            <div class="cow-vitals">
+              <div class="vital-chip ok">🌡️ 38.8°C</div>
+              <div class="vital-chip ok">❤️ 70bpm</div>
+              <div class="vital-chip ok">🍃 430 rum/h</div>
+            </div>
+          </div>
+          <div class="cow-right">
+            <div class="health-ring high">91</div>
+            <div class="cow-zone">🌿 Open</div>
+          </div>
+        </div>
+
+        <div class="cow-card">
+          <div class="cow-avatar healthy">🐄</div>
+          <div style="flex:1">
+            <div class="cow-name">Parvati</div>
+            <div class="cow-id">COW-078 · Tag D044</div>
+            <div class="cow-vitals">
+              <div class="vital-chip ok">🌡️ 38.5°C</div>
+              <div class="vital-chip ok">❤️ 66bpm</div>
+              <div class="vital-chip ok">🩸 98%</div>
+            </div>
+          </div>
+          <div class="cow-right">
+            <div class="health-ring high">96</div>
+            <div class="cow-zone">🏠 Shed</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+        <div class="nav-item active"><div class="nav-icon">🐄</div><div class="nav-label">Herd</div></div>
+        <div class="nav-item"><div class="nav-icon">⚠️</div><div class="nav-label">Alerts</div></div>
+        <div class="nav-item"><div class="nav-icon">📡</div><div class="nav-label">Devices</div></div>
+        <div class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-label">02 · Herd List</div>
+</div>
+
+<!-- ═══════════════════════════════
+     SCREEN 3: COW DETAIL
+════════════════════════════════ -->
+<div class="phone">
+  <div class="phone-shell">
+    <div class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons"><span>●●●●</span><span>🔋</span></div>
+      </div>
+
+      <div class="content">
+        <div class="cow-detail-header">
+          <span class="back-btn">← Herd</span>
+          <div class="cd-top">
+            <div class="cd-avatar">🐄</div>
+            <div>
+              <div class="cd-name">Laxmi</div>
+              <div class="cd-meta">COW-112 · HF Cross · Tag E014 · 4 yrs</div>
+              <div class="cd-tags">
+                <div class="cd-tag alert-tag">🌡️ Fever</div>
+                <div class="cd-tag">🏠 Shed</div>
+                <div class="cd-tag">Collar A1B2C3</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Health score ring -->
+        <div class="health-score-section">
+          <div class="hs-ring-wrap">
+            <svg width="72" height="72" viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="30" fill="none" stroke="#ede6d6" stroke-width="6"/>
+              <circle cx="36" cy="36" r="30" fill="none" stroke="#d94f4f" stroke-width="6"
+                stroke-dasharray="188.5" stroke-dashoffset="71.6" stroke-linecap="round"/>
+            </svg>
+            <div class="hs-center">
+              <div class="hs-num">62</div>
+              <div class="hs-label">/100</div>
+            </div>
+          </div>
+          <div class="hs-right">
+            <div class="hs-title">Health Score</div>
+            <div class="hs-sub" style="color:var(--red)">⚠️ Needs attention</div>
+            <div class="hs-sub" style="margin-top:4px">Fever detected — temp above normal range</div>
+            <div class="hs-updated">Updated 2 min ago</div>
+          </div>
+        </div>
+
+        <!-- Vitals grid -->
+        <div class="vitals-grid">
+          <div class="vg-card">
+            <span class="vg-icon">🌡️</span>
+            <div class="vg-val">40.1 <span class="vg-unit">°C</span></div>
+            <div class="vg-label">Body Temperature</div>
+            <div class="vg-status bad">FEVER</div>
+          </div>
+          <div class="vg-card">
+            <span class="vg-icon">❤️</span>
+            <div class="vg-val">72 <span class="vg-unit">bpm</span></div>
+            <div class="vg-label">Heart Rate</div>
+            <div class="vg-status ok">NORMAL</div>
+          </div>
+          <div class="vg-card">
+            <span class="vg-icon">🩸</span>
+            <div class="vg-val">96 <span class="vg-unit">%</span></div>
+            <div class="vg-label">Blood Oxygen</div>
+            <div class="vg-status ok">NORMAL</div>
+          </div>
+          <div class="vg-card">
+            <span class="vg-icon">🍃</span>
+            <div class="vg-val">310 <span class="vg-unit">/hr</span></div>
+            <div class="vg-label">Rumination</div>
+            <div class="vg-status warn">LOW</div>
+          </div>
+        </div>
+
+        <!-- Temperature chart -->
+        <div class="mini-chart">
+          <div class="mc-header">
+            <div class="mc-title">📈 Temperature — Last 24h</div>
+            <div class="mc-range">38.0°–40.5°C</div>
+          </div>
+          <div class="chart-area">
+            <svg class="chart-line-svg" viewBox="0 0 264 60" preserveAspectRatio="none">
+              <polyline
+                points="0,38 22,36 44,35 66,34 88,36 110,35 132,34 154,33 176,28 198,18 220,10 242,8 264,6"
+                fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="0" y1="28" x2="264" y2="28" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+            </svg>
+            <div class="chart-bar" style="height:37%"></div>
+            <div class="chart-bar" style="height:35%"></div>
+            <div class="chart-bar" style="height:33%"></div>
+            <div class="chart-bar" style="height:34%"></div>
+            <div class="chart-bar" style="height:36%"></div>
+            <div class="chart-bar" style="height:35%"></div>
+            <div class="chart-bar" style="height:33%"></div>
+            <div class="chart-bar" style="height:32%"></div>
+            <div class="chart-bar warn" style="height:42%"></div>
+            <div class="chart-bar alert" style="height:60%"></div>
+            <div class="chart-bar alert today" style="height:82%"></div>
+            <div class="chart-bar alert today" style="height:88%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px">
+            <span style="font-size:9px;color:var(--muted)">00:00</span>
+            <span style="font-size:9px;color:var(--red);font-weight:600">FEVER ↑</span>
+            <span style="font-size:9px;color:var(--muted)">Now</span>
+          </div>
+        </div>
+
+        <!-- Repro timeline -->
+        <div class="repro-card">
+          <div class="rc-top">
+            <span class="rc-icon">🌸</span>
+            <div>
+              <div class="rc-title">Reproductive Cycle</div>
+              <div class="rc-sub">Last calving: 14 Jan 2026 · 91 days ago</div>
+            </div>
+          </div>
+          <div class="rc-timeline">
+            <div class="rc-step">
+              <div class="rc-dot done">✓</div>
+              <div class="rc-step-label">Calved</div>
+            </div>
+            <div class="rc-step">
+              <div class="rc-dot done">✓</div>
+              <div class="rc-step-label">Recovery</div>
+            </div>
+            <div class="rc-step">
+              <div class="rc-dot now">→</div>
+              <div class="rc-step-label">Estrus</div>
+            </div>
+            <div class="rc-step">
+              <div class="rc-dot"></div>
+              <div class="rc-step-label">Breed</div>
+            </div>
+            <div class="rc-step">
+              <div class="rc-dot"></div>
+              <div class="rc-step-label">Pregnant</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity today -->
+        <div class="label-row">Today's Activity</div>
+        <div class="zone-card" style="margin:0 14px 8px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:11px;color:var(--muted)">Posture now</span>
+            <span style="font-size:11px;font-weight:600;color:var(--earth)">🏃 Walking</span>
+          </div>
+          <div style="display:flex;gap:16px">
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--earth)">2,840</div>
+              <div style="font-size:9px;color:var(--muted)">Steps today</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--earth)">3.2h</div>
+              <div style="font-size:9px;color:var(--muted)">Grazing</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:700;color:var(--earth)">44</div>
+              <div style="font-size:9px;color:var(--muted)">Activity score</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+        <div class="nav-item active"><div class="nav-icon">🐄</div><div class="nav-label">Herd</div></div>
+        <div class="nav-item"><div class="nav-icon">⚠️</div><div class="nav-label">Alerts</div></div>
+        <div class="nav-item"><div class="nav-icon">📡</div><div class="nav-label">Devices</div></div>
+        <div class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-label">03 · Cow Detail</div>
+</div>
+
+<!-- ═══════════════════════════════
+     SCREEN 4: ALERTS
+════════════════════════════════ -->
+<div class="phone">
+  <div class="phone-shell">
+    <div class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <div class="status-icons"><span>●●●●</span><span>🔋</span></div>
+      </div>
+
+      <div class="content">
+        <div class="alerts-header">
+          <div class="alerts-title">Alerts</div>
+          <div class="alerts-count">🔴 7 unresolved</div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-pill active">All (7)</div>
+          <div class="filter-pill">🔴 Critical (2)</div>
+          <div class="filter-pill">🟡 Warning (3)</div>
+          <div class="filter-pill">🔵 Info (2)</div>
+          <div class="filter-pill">✅ Resolved</div>
+        </div>
+
+        <!-- Critical: Fever -->
+        <div class="alert-full-card">
+          <div class="afc-top">
+            <div class="afc-badge critical">🌡️</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+                <div class="afc-title">Fever Detected</div>
+                <div class="afc-sev critical">Critical</div>
+              </div>
+              <div class="afc-msg">Body temperature 40.1°C — above normal range (38–39.5°C). Possible illness or infection.</div>
+              <div class="afc-meta">
+                <div class="afc-cow">🐄 Laxmi · COW-112</div>
+                <div class="afc-time">2 min ago</div>
+              </div>
+            </div>
+          </div>
+          <div class="afc-actions">
+            <button class="afc-btn secondary">View Cow</button>
+            <button class="afc-btn primary">✓ Resolve</button>
+          </div>
+        </div>
+
+        <!-- Critical: Calving -->
+        <div class="alert-full-card">
+          <div class="afc-top">
+            <div class="afc-badge critical">🤰</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+                <div class="afc-title">Calving Imminent</div>
+                <div class="afc-sev critical">Critical</div>
+              </div>
+              <div class="afc-msg">Pre-calving signs: vaginal temp drop, restlessness. Attend to cow immediately.</div>
+              <div class="afc-meta">
+                <div class="afc-cow">🐄 Savitri · COW-047</div>
+                <div class="afc-time">18 min ago</div>
+              </div>
+            </div>
+          </div>
+          <div class="afc-actions">
+            <button class="afc-btn secondary">View Cow</button>
+            <button class="afc-btn primary">✓ Resolve</button>
+          </div>
+        </div>
+
+        <!-- Info: Estrus -->
+        <div class="alert-full-card">
+          <div class="afc-top">
+            <div class="afc-badge info">🌸</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+                <div class="afc-title">Estrus Detected</div>
+                <div class="afc-sev info">Info</div>
+              </div>
+              <div class="afc-msg">Heat cycle detected. Optimal breeding window: next 12–18 hours.</div>
+              <div class="afc-meta">
+                <div class="afc-cow">🐄 Ganga · COW-085</div>
+                <div class="afc-time">14 min ago</div>
+              </div>
+            </div>
+          </div>
+          <div class="afc-actions">
+            <button class="afc-btn secondary">Log Event</button>
+            <button class="afc-btn primary">✓ Resolve</button>
+          </div>
+        </div>
+
+        <!-- Warning: Low rumination -->
+        <div class="alert-full-card">
+          <div class="afc-top">
+            <div class="afc-badge warning">🍃</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+                <div class="afc-title">Low Rumination</div>
+                <div class="afc-sev warning">Warning</div>
+              </div>
+              <div class="afc-msg">310 jaw cycles/hr — below normal (350+). Monitor appetite and behavior.</div>
+              <div class="afc-meta">
+                <div class="afc-cow">🐄 Laxmi · COW-112</div>
+                <div class="afc-time">32 min ago</div>
+              </div>
+            </div>
+          </div>
+          <div class="afc-actions">
+            <button class="afc-btn secondary">View Cow</button>
+            <button class="afc-btn primary">✓ Resolve</button>
+          </div>
+        </div>
+
+        <!-- Warning: Battery -->
+        <div class="alert-full-card">
+          <div class="afc-top">
+            <div class="afc-badge warning">🔋</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:space-between">
+                <div class="afc-title">Low Battery</div>
+                <div class="afc-sev warning">Warning</div>
+              </div>
+              <div class="afc-msg">Collar battery at 12%. Please ensure solar panel is unobstructed.</div>
+              <div class="afc-meta">
+                <div class="afc-cow">📡 COLLAR-A1B2C3</div>
+                <div class="afc-time">1h ago</div>
+              </div>
+            </div>
+          </div>
+          <div class="afc-actions">
+            <button class="afc-btn secondary">View Device</button>
+            <button class="afc-btn primary">✓ Resolve</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+        <div class="nav-item"><div class="nav-icon">🐄</div><div class="nav-label">Herd</div></div>
+        <div class="nav-item active"><div class="nav-icon">⚠️</div><div class="nav-label">Alerts</div></div>
+        <div class="nav-item"><div class="nav-icon">📡</div><div class="nav-label">Devices</div></div>
+        <div class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-label">04 · Alerts</div>
+</div>
+
+<!-- ═══════════════════════════════
+     SCREEN 5: BLE SETUP
+════════════════════════════════ -->
+<div class="phone">
+  <div class="phone-shell">
+    <div class="screen">
+      <div class="status-bar" style="background:linear-gradient(160deg,#1a2f4a,#0e1d30);color:rgba(245,240,232,0.8)">
+        <span>9:41</span>
+        <div class="status-icons"><span>●●●●</span><span>🔋</span></div>
+      </div>
+
+      <div class="content">
+        <div class="ble-header">
+          <span style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:2px">NEW COLLAR SETUP</span>
+          <div class="ble-h-title">Add New Collar 📡</div>
+          <div class="ble-h-sub">Follow steps to connect collar to your farm WiFi</div>
+        </div>
+
+        <!-- Steps checklist -->
+        <div class="ble-step-card">
+          <div class="ble-sc-title">
+            <div class="ble-sc-num done">✓</div>
+            Power on new collar
+          </div>
+          <div style="font-size:11px;color:var(--muted);padding-left:30px">Press button until LED blinks blue — BLE mode active</div>
+        </div>
+
+        <div class="ble-step-card" style="margin-top:8px">
+          <div class="ble-sc-title">
+            <div class="ble-sc-num done">✓</div>
+            Scanning for collars nearby...
+          </div>
+          <div style="font-size:11px;color:var(--leaf);padding-left:30px">✓ 1 collar found in range</div>
+        </div>
+
+        <!-- BLE scan animation -->
+        <div class="ble-scan-area">
+          <div class="ble-pulse">📡</div>
+          <div class="ble-scan-title">Collar found!</div>
+          <div class="ble-scan-sub">Tap Connect to begin pairing</div>
+        </div>
+
+        <!-- Found device -->
+        <div class="ble-device-found">
+          <div class="bdf-icon">🐄</div>
+          <div>
+            <div class="bdf-name">CattleCollar-A4F6E2</div>
+            <div class="bdf-id">Signal: -48 dBm · Unregistered</div>
+          </div>
+          <button class="bdf-connect">Connect</button>
+        </div>
+
+        <!-- WiFi credentials to send -->
+        <div class="ble-step-card" style="margin-top:8px">
+          <div class="ble-sc-title">
+            <div class="ble-sc-num">3</div>
+            Send WiFi credentials via BLE
+          </div>
+        </div>
+
+        <div class="wifi-send-card">
+          <div class="wsc-row">
+            <span class="wsc-icon">📶</span>
+            <span class="wsc-label">WiFi Network</span>
+            <span class="wsc-val">VermaDairy_5G</span>
+          </div>
+          <div class="wsc-row">
+            <span class="wsc-icon">🔐</span>
+            <span class="wsc-label">Password</span>
+            <span class="wsc-val">••••••••</span>
+          </div>
+          <div class="wsc-row">
+            <span class="wsc-icon">🐄</span>
+            <span class="wsc-label">Assign to Cow</span>
+            <span class="wsc-val">COW-119</span>
+          </div>
+          <div class="wsc-row" style="padding-bottom:0;border:none">
+            <span class="wsc-icon">✅</span>
+            <span class="wsc-label">Encryption</span>
+            <span class="wsc-val" style="color:var(--leaf)">BLE Secure</span>
+          </div>
+        </div>
+
+        <button class="send-btn">
+          <span>📲</span> Send to Collar via BLE
+        </button>
+
+        <div style="margin:10px 14px;padding:10px 12px;background:rgba(90,158,90,0.08);border-radius:12px;border:1px solid rgba(90,158,90,0.2)">
+          <div style="font-size:11px;font-weight:600;color:var(--leaf)">ℹ️ What happens next?</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5">Collar receives WiFi credentials, BLE turns OFF permanently, collar connects to cloud WiFi and starts sending cattle data automatically.</div>
+        </div>
+
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item"><div class="nav-icon">🏠</div><div class="nav-label">Home</div></div>
+        <div class="nav-item"><div class="nav-icon">🐄</div><div class="nav-label">Herd</div></div>
+        <div class="nav-item"><div class="nav-icon">⚠️</div><div class="nav-label">Alerts</div></div>
+        <div class="nav-item active"><div class="nav-icon">📡</div><div class="nav-label">Devices</div></div>
+        <div class="nav-item"><div class="nav-icon">👤</div><div class="nav-label">Profile</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-label">05 · BLE Collar Setup</div>
+</div>
+
+</div><!-- gallery -->
+</body>
+</html>

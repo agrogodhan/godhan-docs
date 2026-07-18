@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cattle Wearable — BLE Provision + WiFi Direct Cloud</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+
+  :root {
+    --bg: #07080f;
+    --card: #0e1120;
+    --border: #1c2040;
+    --blue: #4d8fff;
+    --cyan: #00e5ff;
+    --green: #39ff6e;
+    --amber: #ffb830;
+    --red: #ff4d6d;
+    --purple: #b06dff;
+    --text: #ccd6f6;
+    --muted: #4a5580;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(77,143,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,143,255,0.03) 1px, transparent 1px);
+    background-size: 38px 38px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 18px 60px;
+  }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 36px; }
+  .badge {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--cyan);
+    letter-spacing: 3px; border: 1px solid var(--cyan);
+    padding: 4px 14px; margin-bottom: 14px;
+  }
+  .header h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(24px, 5vw, 42px);
+    font-weight: 700; color: #fff; line-height: 1.1;
+  }
+  .header h1 span { color: var(--cyan); }
+  .header p { margin-top: 8px; color: var(--muted); font-size: 13px; }
+
+  /* Section title */
+  .sec { font-family: 'Rajdhani', sans-serif; font-size: 16px; font-weight: 700; color: #fff; margin: 30px 0 12px; display: flex; align-items: center; gap: 10px; }
+  .sec::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ============================
+     FLOW DIAGRAM
+  ============================ */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
+  }
+
+  /* Step box */
+  .step {
+    width: 100%;
+    max-width: 720px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .step::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .step.s-ble   { border-color: rgba(176,109,255,0.35); } .step.s-ble::before   { background: var(--purple); }
+  .step.s-wifi  { border-color: rgba(0,229,255,0.35);  } .step.s-wifi::before  { background: var(--cyan); }
+  .step.s-cloud { border-color: rgba(57,255,110,0.35); } .step.s-cloud::before { background: var(--green); }
+  .step.s-app   { border-color: rgba(77,143,255,0.35); } .step.s-app::before   { background: var(--blue); }
+
+  .step-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .step-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    flex-shrink: 0;
+  }
+  .step-icon { font-size: 26px; flex-shrink: 0; }
+  .step-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px; font-weight: 700; color: #fff;
+  }
+  .step-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .step-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+
+  .info-tile {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .it-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .it-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px; font-weight: 600; color: #fff;
+    line-height: 1.3;
+  }
+  .step.s-ble   .it-val { color: var(--purple); }
+  .step.s-wifi  .it-val { color: var(--cyan);   }
+  .step.s-cloud .it-val { color: var(--green);  }
+  .step.s-app   .it-val { color: var(--blue);   }
+
+  /* Arrow between steps */
+  .flow-arrow {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6px 0; gap: 2px;
+  }
+  .fa-line {
+    width: 2px; height: 20px;
+    background: linear-gradient(to bottom, var(--border), var(--cyan));
+  }
+  .fa-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--cyan);
+    background: var(--bg); padding: 3px 12px;
+    border: 1px solid rgba(0,229,255,0.25);
+    border-radius: 20px; letter-spacing: 1px;
+  }
+  .fa-arrow { font-size: 12px; color: var(--cyan); }
+
+  /* ============================
+     PROVISIONING STEPS
+  ============================ */
+  .provision-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 40px;
+  }
+  .provision-steps::before {
+    content: '';
+    position: absolute; left: 16px; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--purple), var(--cyan), var(--green));
+  }
+  .ps-item {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--border);
+    position: relative;
+  }
+  .ps-item:last-child { border-bottom: none; }
+  .ps-dot {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    font-family: 'Share Tech Mono', monospace;
+    flex-shrink: 0;
+    position: absolute; left: -32px; top: 14px;
+    border: 2px solid var(--bg);
+  }
+  .ps-dot.ble    { background: var(--purple); color: #fff; }
+  .ps-dot.wifi   { background: var(--cyan);   color: #000; }
+  .ps-dot.cloud  { background: var(--green);  color: #000; }
+  .ps-dot.done   { background: var(--amber);  color: #000; }
+
+  .ps-content { flex: 1; }
+  .ps-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px; font-weight: 700; color: #fff;
+    margin-bottom: 4px;
+  }
+  .ps-desc {
+    font-size: 12px; color: var(--muted); line-height: 1.6;
+  }
+  .ps-desc strong { color: var(--text); }
+  .ps-tag {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; padding: 2px 8px;
+    border-radius: 4px; margin-top: 6px; margin-right: 4px;
+  }
+  .tag-ble   { background: rgba(176,109,255,0.12); color: var(--purple); border: 1px solid rgba(176,109,255,0.3); }
+  .tag-wifi  { background: rgba(0,229,255,0.10);  color: var(--cyan);   border: 1px solid rgba(0,229,255,0.3);  }
+  .tag-cloud { background: rgba(57,255,110,0.10); color: var(--green);  border: 1px solid rgba(57,255,110,0.3); }
+  .tag-once  { background: rgba(255,184,48,0.10); color: var(--amber);  border: 1px solid rgba(255,184,48,0.3); }
+
+  /* ============================
+     DATA PAYLOAD TABLE
+  ============================ */
+  .payload-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .payload-header {
+    background: rgba(0,229,255,0.06);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 18px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--cyan);
+    letter-spacing: 2px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .payload-table {
+    width: 100%; border-collapse: collapse;
+  }
+  .payload-table th {
+    background: rgba(255,255,255,0.02);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 8px 16px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .payload-table td {
+    padding: 10px 16px; font-size: 12px;
+    border-bottom: 1px solid rgba(28,32,64,0.8);
+    vertical-align: top;
+  }
+  .payload-table tr:last-child td { border-bottom: none; }
+  .payload-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .field-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--cyan);
+  }
+  .field-type {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--purple);
+  }
+  .field-src { color: var(--muted); font-size: 11px; }
+
+  /* ============================
+     HARDWARE CHANGE SUMMARY
+  ============================ */
+  .hw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .hw-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    position: relative; overflow: hidden;
+  }
+  .hw-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .hw-card.keep    { border-color: rgba(57,255,110,0.25);  } .hw-card.keep::before    { background: var(--green);  }
+  .hw-card.changed { border-color: rgba(0,229,255,0.25);   } .hw-card.changed::before { background: var(--cyan);   }
+  .hw-card.removed { border-color: rgba(255,77,109,0.2);   opacity: 0.55; }            .hw-card.removed::before { background: var(--red); }
+  .hw-icon { font-size: 20px; margin-bottom: 6px; display: block; }
+  .hw-title { font-family: 'Rajdhani', sans-serif; font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .hw-spec  { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); line-height: 1.7; }
+  .hw-card.keep    .hw-badge { color: var(--green);  }
+  .hw-card.changed .hw-badge { color: var(--cyan);   }
+  .hw-card.removed .hw-badge { color: var(--red); text-decoration: line-through; }
+  .hw-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 1px;
+    display: inline-block; margin-bottom: 6px;
+  }
+
+  /* JSON preview */
+  .json-box {
+    background: #040508;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    line-height: 1.9;
+    overflow-x: auto;
+  }
+  .j-key   { color: var(--cyan); }
+  .j-val   { color: var(--green); }
+  .j-str   { color: var(--amber); }
+  .j-num   { color: var(--purple); }
+  .j-bool  { color: var(--red); }
+  .j-muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="badge">BLE Provisioning + Direct WiFi → Cloud · v3.0</div>
+    <h1>Cattle Wearable<br><span>BLE Setup · WiFi Direct Cloud</span></h1>
+    <p>Collar uses BLE once to join WiFi · Then sends sensor data directly to cloud server</p>
+  </div>
+
+  <!-- Full Data Flow -->
+  <div class="sec">📡 Complete Data Flow</div>
+  <div class="flow">
+
+    <!-- Step 1: Collar -->
+    <div class="step s-ble">
+      <div class="step-header">
+        <div class="step-num">STEP 01</div>
+        <div class="step-icon">🐄</div>
+        <div>
+          <div class="step-title">Cattle Collar (ESP32-S3)</div>
+          <div class="step-subtitle">Wearable device on cattle — collects all sensor data</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="info-tile"><div class="it-label">Activity</div><div class="it-val">MPU-6050 · Steps, posture, grazing</div></div>
+        <div class="info-tile"><div class="it-label">Body Temp</div><div class="it-val">DS18B20 · Ear probe</div></div>
+        <div class="info-tile"><div class="it-label">Heart Rate</div><div class="it-val">MAX30102 · PPG optical</div></div>
+        <div class="info-tile"><div class="it-label">Rumination</div><div class="it-val">MEMS Mic · Jaw cycles</div></div>
+        <div class="info-tile"><div class="it-label">Estrus / Calving</div><div class="it-val">LMT70 · Precision temp probe</div></div>
+        <div class="info-tile"><div class="it-label">Radio Chips</div><div class="it-val">BLE 5.0 + WiFi built-in</div></div>
+      </div>
+    </div>
+
+    <!-- Arrow: BLE provisioning -->
+    <div class="flow-arrow">
+      <div class="fa-line"></div>
+      <div class="fa-label">📲 BLE — ONE TIME SETUP ONLY</div>
+      <div class="fa-arrow">▼</div>
+    </div>
+
+    <!-- Step 2: Phone / App -->
+    <div class="step s-ble">
+      <div class="step-header">
+        <div class="step-num">STEP 02</div>
+        <div class="step-icon">📱</div>
+        <div>
+          <div class="step-title">Farmer's Phone (BLE Provisioning)</div>
+          <div class="step-subtitle">One-time setup · App sends WiFi credentials to collar via BLE</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="info-tile"><div class="it-label">Action</div><div class="it-val">Open app → Scan collar BLE → Send WiFi SSID + Password</div></div>
+        <div class="info-tile"><div class="it-label">Protocol</div><div class="it-val">BLE GATT · Secure pairing</div></div>
+        <div class="info-tile"><div class="it-label">Duration</div><div class="it-val">~10 seconds, done once per collar</div></div>
+        <div class="info-tile"><div class="it-label">After setup</div><div class="it-val">BLE stays off · Saves battery</div></div>
+      </div>
+    </div>
+
+    <!-- Arrow: WiFi join -->
+    <div class="flow-arrow">
+      <div class="fa-line"></div>
+      <div class="fa-label">📶 WiFi JOIN — PERMANENT CONNECTION</div>
+      <div class="fa-arrow">▼</div>
+    </div>
+
+    <!-- Step 3: WiFi Router -->
+    <div class="step s-wifi">
+      <div class="step-header">
+        <div class="step-num">STEP 03</div>
+        <div class="step-icon">📡</div>
+        <div>
+          <div class="step-title">Farm WiFi Router / Access Points</div>
+          <div class="step-subtitle">Collar connects to compound WiFi · Gets internet access</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="info-tile"><div class="it-label">APs in Shed</div><div class="it-val">AP-01 + AP-02 · Indoor waterproof</div></div>
+        <div class="info-tile"><div class="it-label">APs in Open</div><div class="it-val">AP-03 + AP-04 · Outdoor pole mount</div></div>
+        <div class="info-tile"><div class="it-label">Coverage</div><div class="it-val">Full 1 acre · Overlapping zones</div></div>
+        <div class="info-tile"><div class="it-label">Collar connects</div><div class="it-val">Auto-reconnects on power on · No BLE needed again</div></div>
+      </div>
+    </div>
+
+    <!-- Arrow: Direct to cloud -->
+    <div class="flow-arrow">
+      <div class="fa-line"></div>
+      <div class="fa-label">🌐 HTTPS / MQTT — EVERY 30 SECONDS</div>
+      <div class="fa-arrow">▼</div>
+    </div>
+
+    <!-- Step 4: Cloud -->
+    <div class="step s-cloud">
+      <div class="step-header">
+        <div class="step-num">STEP 04</div>
+        <div class="step-icon">☁️</div>
+        <div>
+          <div class="step-title">Cloud Server (AWS IoT / Firebase)</div>
+          <div class="step-subtitle">Collar pushes JSON data directly · No middleman server needed</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="info-tile"><div class="it-label">Protocol</div><div class="it-val">MQTT over TLS or HTTPS POST</div></div>
+        <div class="info-tile"><div class="it-label">Frequency</div><div class="it-val">Every 30 sec · Alert triggers instant push</div></div>
+        <div class="info-tile"><div class="it-label">Storage</div><div class="it-val">Time-series DB · Per cattle history</div></div>
+        <div class="info-tile"><div class="it-label">AI Engine</div><div class="it-val">Anomaly detection · Health scoring</div></div>
+      </div>
+    </div>
+
+    <!-- Arrow: App -->
+    <div class="flow-arrow">
+      <div class="fa-line"></div>
+      <div class="fa-label">📲 PUSH NOTIFICATION + DASHBOARD</div>
+      <div class="fa-arrow">▼</div>
+    </div>
+
+    <!-- Step 5: App -->
+    <div class="step s-app">
+      <div class="step-header">
+        <div class="step-num">STEP 05</div>
+        <div class="step-icon">📲</div>
+        <div>
+          <div class="step-title">Farmer App (iOS / Android)</div>
+          <div class="step-subtitle">Live dashboard · Alerts · Per-cattle health history</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="info-tile"><div class="it-label">Live View</div><div class="it-val">All cattle vitals in one screen</div></div>
+        <div class="info-tile"><div class="it-label">Alerts</div><div class="it-val">Fever · Estrus · Calving · Low activity</div></div>
+        <div class="info-tile"><div class="it-label">History</div><div class="it-val">Per animal health graphs & trends</div></div>
+        <div class="info-tile"><div class="it-label">BLE Use</div><div class="it-val">Only for new collar setup · Not for data</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Provisioning Detail -->
+  <div class="sec">🔵 BLE Provisioning — Step by Step</div>
+  <div class="provision-steps">
+
+    <div class="ps-item">
+      <div class="ps-dot ble">1</div>
+      <div class="ps-content">
+        <div class="ps-title">New collar powered ON for first time</div>
+        <div class="ps-desc">ESP32-S3 boots into <strong>BLE Provisioning Mode</strong>. It starts advertising its BLE name like <strong>"CattleCollar-045"</strong>. WiFi is OFF at this point to save power.</div>
+        <span class="ps-tag tag-ble">BLE ADVERTISING</span>
+        <span class="ps-tag tag-once">ONE TIME</span>
+      </div>
+    </div>
+
+    <div class="ps-item">
+      <div class="ps-dot ble">2</div>
+      <div class="ps-content">
+        <div class="ps-title">Farmer opens app → Scans for collars</div>
+        <div class="ps-desc">App scans BLE and shows a list of unconfigured collars nearby. Farmer selects <strong>CattleCollar-045</strong> and assigns it to a specific cow (Cow ID, name, age).</div>
+        <span class="ps-tag tag-ble">BLE SCAN</span>
+        <span class="ps-tag tag-ble">GATT CONNECT</span>
+      </div>
+    </div>
+
+    <div class="ps-item">
+      <div class="ps-dot ble">3</div>
+      <div class="ps-content">
+        <div class="ps-title">App sends WiFi credentials to collar via BLE</div>
+        <div class="ps-desc">App writes <strong>WiFi SSID + Password</strong> to the collar's BLE GATT characteristic. Data is encrypted. Collar saves credentials to its internal flash memory (NVS storage).</div>
+        <span class="ps-tag tag-ble">GATT WRITE</span>
+        <span class="ps-tag tag-wifi">CREDENTIALS SAVED</span>
+      </div>
+    </div>
+
+    <div class="ps-item">
+      <div class="ps-dot wifi">4</div>
+      <div class="ps-content">
+        <div class="ps-title">Collar disconnects BLE · Connects to WiFi</div>
+        <div class="ps-desc">BLE is turned OFF permanently (until factory reset). Collar uses saved credentials to <strong>join the farm WiFi network</strong> and gets an IP address from the router.</div>
+        <span class="ps-tag tag-wifi">WiFi JOIN</span>
+        <span class="ps-tag tag-wifi">IP ASSIGNED</span>
+      </div>
+    </div>
+
+    <div class="ps-item">
+      <div class="ps-dot cloud">5</div>
+      <div class="ps-content">
+        <div class="ps-title">Collar registers itself on cloud server</div>
+        <div class="ps-desc">First WiFi packet sent to cloud: collar sends its <strong>Device ID + Cow ID + firmware version</strong>. Cloud registers the device. From now on all data flows directly collar → cloud.</div>
+        <span class="ps-tag tag-cloud">DEVICE REGISTER</span>
+        <span class="ps-tag tag-cloud">MQTT CONNECT</span>
+      </div>
+    </div>
+
+    <div class="ps-item">
+      <div class="ps-dot done">✓</div>
+      <div class="ps-content">
+        <div class="ps-title">Setup complete — BLE never used again</div>
+        <div class="ps-desc">Every power cycle, collar auto-connects to WiFi using saved credentials. <strong>No phone needed nearby</strong>. Data flows directly to cloud every 30 seconds forever. BLE only re-activates if farmer presses factory reset button.</div>
+        <span class="ps-tag tag-once">PERMANENT</span>
+        <span class="ps-tag tag-wifi">AUTO RECONNECT</span>
+        <span class="ps-tag tag-cloud">DIRECT TO CLOUD</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- JSON Payload -->
+  <div class="sec">📦 Data Packet — What Collar Sends to Cloud</div>
+  <div class="json-box">
+    <span class="j-muted">// POST to: https://api.cattlecloud.com/v1/data  · Every 30 seconds</span><br><br>
+    <span class="j-muted">{</span><br>
+    &nbsp;&nbsp;<span class="j-key">"device_id"</span>: <span class="j-str">"COLLAR-045"</span>,<span class="j-muted"> // unique collar ID flashed at factory</span><br>
+    &nbsp;&nbsp;<span class="j-key">"cow_id"</span>: <span class="j-str">"COW-112"</span>,<span class="j-muted"> // assigned during BLE setup</span><br>
+    &nbsp;&nbsp;<span class="j-key">"timestamp"</span>: <span class="j-str">"2026-04-12T08:32:10Z"</span>,<br><br>
+
+    &nbsp;&nbsp;<span class="j-muted">// ── ACTIVITY ──────────────────────────────</span><br>
+    &nbsp;&nbsp;<span class="j-key">"steps"</span>: <span class="j-num">142</span>,<span class="j-muted"> // since last packet</span><br>
+    &nbsp;&nbsp;<span class="j-key">"posture"</span>: <span class="j-str">"grazing"</span>,<span class="j-muted"> // standing | lying | grazing | walking</span><br>
+    &nbsp;&nbsp;<span class="j-key">"activity_score"</span>: <span class="j-num">74</span>,<span class="j-muted"> // 0–100</span><br><br>
+
+    &nbsp;&nbsp;<span class="j-muted">// ── HEALTH ────────────────────────────────</span><br>
+    &nbsp;&nbsp;<span class="j-key">"body_temp_c"</span>: <span class="j-num">38.6</span>,<span class="j-muted"> // normal: 38.0–39.5°C</span><br>
+    &nbsp;&nbsp;<span class="j-key">"heart_rate_bpm"</span>: <span class="j-num">68</span>,<span class="j-muted"> // normal: 48–84 bpm</span><br>
+    &nbsp;&nbsp;<span class="j-key">"spo2_pct"</span>: <span class="j-num">97</span>,<span class="j-muted"> // blood oxygen %</span><br>
+    &nbsp;&nbsp;<span class="j-key">"rumination_cycles_hr"</span>: <span class="j-num">420</span>,<span class="j-muted"> // jaw chews per hour</span><br><br>
+
+    &nbsp;&nbsp;<span class="j-muted">// ── REPRODUCTION ──────────────────────────</span><br>
+    &nbsp;&nbsp;<span class="j-key">"vaginal_temp_c"</span>: <span class="j-num">38.9</span>,<span class="j-muted"> // rises during estrus</span><br>
+    &nbsp;&nbsp;<span class="j-key">"estrus_flag"</span>: <span class="j-bool">false</span>,<span class="j-muted"> // true = heat detected</span><br>
+    &nbsp;&nbsp;<span class="j-key">"calving_alert"</span>: <span class="j-bool">false</span>,<span class="j-muted"> // true = imminent calving</span><br><br>
+
+    &nbsp;&nbsp;<span class="j-muted">// ── DEVICE STATUS ─────────────────────────</span><br>
+    &nbsp;&nbsp;<span class="j-key">"battery_pct"</span>: <span class="j-num">82</span>,<br>
+    &nbsp;&nbsp;<span class="j-key">"wifi_rssi"</span>: <span class="j-num">-58</span>,<span class="j-muted"> // signal strength · used for zone detection</span><br>
+    &nbsp;&nbsp;<span class="j-key">"zone"</span>: <span class="j-str">"shed"</span><span class="j-muted"> // shed | open · derived from RSSI of APs</span><br>
+    <span class="j-muted">}</span>
+  </div>
+
+  <!-- Hardware summary -->
+  <div class="sec">🔧 Final Collar Hardware (BLE + WiFi Build)</div>
+  <div class="hw-grid">
+    <div class="hw-card keep">
+      <div class="hw-badge">✅ KEEP</div>
+      <span class="hw-icon">💻</span>
+      <div class="hw-title">ESP32-S3</div>
+      <div class="hw-spec"><span>BLE 5.0 + WiFi built-in</span><span>No extra radio chips</span><span>Does both in one chip</span></div>
+    </div>
+    <div class="hw-card keep">
+      <span class="hw-badge">✅ KEEP</span>
+      <span class="hw-icon">🏃</span>
+      <div class="hw-title">MPU-6050</div>
+      <div class="hw-spec"><span>Activity monitoring</span><span>I²C → ESP32</span></div>
+    </div>
+    <div class="hw-card keep">
+      <span class="hw-badge">✅ KEEP</span>
+      <span class="hw-icon">🌡️</span>
+      <div class="hw-title">DS18B20</div>
+      <div class="hw-spec"><span>Body temperature</span><span>1-Wire → ESP32</span></div>
+    </div>
+    <div class="hw-card keep">
+      <span class="hw-badge">✅ KEEP</span>
+      <span class="hw-icon">❤️</span>
+      <div class="hw-title">MAX30102</div>
+      <div class="hw-spec"><span>Heart rate + SpO₂</span><span>I²C → ESP32</span></div>
+    </div>
+    <div class="hw-card keep">
+      <span class="hw-badge">✅ KEEP</span>
+      <span class="hw-icon">🐄</span>
+      <div class="hw-title">INMP441 Mic</div>
+      <div class="hw-spec"><span>Rumination tracking</span><span>I²S → ESP32</span></div>
+    </div>
+    <div class="hw-card keep">
+      <span class="hw-badge">✅ KEEP</span>
+      <span class="hw-icon">🌸</span>
+      <div class="hw-title">LMT70 Probe</div>
+      <div class="hw-spec"><span>Estrus / Calving temp</span><span>ADC → ESP32</span></div>
+    </div>
+    <div class="hw-card keep">
+      <span class="hw-badge">✅ KEEP</span>
+      <span class="hw-icon">☀️🔋</span>
+      <div class="hw-title">Solar + LiPo</div>
+      <div class="hw-spec"><span>5V flex solar panel</span><span>3.7V / 1500mAh battery</span></div>
+    </div>
+    <div class="hw-card removed">
+      <span class="hw-badge">❌ REMOVED</span>
+      <span class="hw-icon">📡</span>
+      <div class="hw-title">LoRa SX1276</div>
+      <div class="hw-spec"><span>Not needed</span><span>WiFi replaces it</span></div>
+    </div>
+    <div class="hw-card removed">
+      <span class="hw-badge">❌ REMOVED</span>
+      <span class="hw-icon">📍</span>
+      <div class="hw-title">NEO-6M GPS</div>
+      <div class="hw-spec"><span>Not needed</span><span>WiFi RSSI for zone detect</span></div>
+    </div>
+    <div class="hw-card removed">
+      <span class="hw-badge">❌ REMOVED</span>
+      <span class="hw-icon">🌐</span>
+      <div class="hw-title">SIM7000G NB-IoT</div>
+      <div class="hw-spec"><span>Not needed</span><span>WiFi handles cloud uplink</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

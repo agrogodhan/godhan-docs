@@ -1,0 +1,33 @@
+{
+  "name": "cattle-collar-api",
+  "version": "1.0.0",
+  "description": "REST API + MQTT ingester for Cattle Smart Collar system",
+  "main": "server.js",
+  "scripts": {
+    "start":     "node server.js",
+    "dev":       "nodemon server.js",
+    "mqtt":      "node mqtt/ingester.js",
+    "seed":      "node utils/seed.js"
+  },
+  "dependencies": {
+    "express":           "^4.18.2",
+    "mongoose":          "^8.3.0",
+    "mqtt":              "^5.6.0",
+    "dotenv":            "^16.4.5",
+    "bcryptjs":          "^2.4.3",
+    "jsonwebtoken":      "^9.0.2",
+    "joi":               "^17.12.2",
+    "express-rate-limit":"^7.2.0",
+    "helmet":            "^7.1.0",
+    "cors":              "^2.8.5",
+    "morgan":            "^1.10.0",
+    "dayjs":             "^1.11.10",
+    "winston":           "^3.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

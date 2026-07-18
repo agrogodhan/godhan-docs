@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cattle Smart Wearable — WiFi Dairy Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+
+  :root {
+    --bg: #060b10;
+    --surface: #0b1520;
+    --card: #0d1a26;
+    --border: #1a3048;
+    --cyan: #00d4ff;
+    --cyan2: #0099cc;
+    --green: #39ff6e;
+    --amber: #ffb830;
+    --red: #ff4d6d;
+    --purple: #b06dff;
+    --orange: #ff7a30;
+    --text: #cce6f4;
+    --muted: #4a7090;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+    background-size: 36px 36px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 40px; }
+  .badge {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--cyan);
+    letter-spacing: 3px;
+    border: 1px solid var(--cyan);
+    padding: 4px 14px; margin-bottom: 14px;
+  }
+  .header h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(24px, 5vw, 42px);
+    font-weight: 700; color: #fff; line-height: 1.1;
+  }
+  .header h1 span { color: var(--cyan); }
+  .header p { margin-top: 10px; color: var(--muted); font-size: 13px; }
+
+  /* Info pills */
+  .info-pills {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    justify-content: center; margin-bottom: 36px;
+  }
+  .pill {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; padding: 5px 14px;
+    border-radius: 20px; border: 1px solid;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pill.cyan  { color: var(--cyan);   border-color: rgba(0,212,255,0.3);  background: rgba(0,212,255,0.06);  }
+  .pill.green { color: var(--green);  border-color: rgba(57,255,110,0.3); background: rgba(57,255,110,0.06); }
+  .pill.amber { color: var(--amber);  border-color: rgba(255,184,48,0.3); background: rgba(255,184,48,0.06); }
+  .pill.red   { color: var(--red);    border-color: rgba(255,77,109,0.3); background: rgba(255,77,109,0.06); }
+
+  /* Section title */
+  .sec-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 17px; font-weight: 700; color: #fff;
+    margin: 28px 0 10px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sec-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ===== COMPOUND MAP ===== */
+  .compound-map {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .compound-map::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(0,212,255,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .map-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 2px; margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  .compound {
+    border: 2px solid rgba(0,212,255,0.4);
+    border-radius: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 320px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Shed area */
+  .zone-shed {
+    background: rgba(255,184,48,0.05);
+    border-right: 2px dashed rgba(255,184,48,0.3);
+    padding: 16px;
+    position: relative;
+  }
+  .zone-open {
+    background: rgba(57,255,110,0.04);
+    padding: 16px;
+    position: relative;
+  }
+  .zone-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 2px;
+    margin-bottom: 12px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .zone-shed .zone-label { background: rgba(255,184,48,0.12); color: var(--amber); border: 1px solid rgba(255,184,48,0.3); }
+  .zone-open .zone-label { background: rgba(57,255,110,0.1); color: var(--green); border: 1px solid rgba(57,255,110,0.3); }
+
+  /* AP nodes */
+  .ap-grid {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 8px;
+  }
+  .ap-node {
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.35);
+    border-radius: 8px;
+    padding: 8px 12px;
+    text-align: center;
+    position: relative;
+  }
+  .ap-node .ap-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+  .ap-node .ap-name {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--cyan);
+  }
+  .ap-node .ap-range {
+    font-size: 10px; color: var(--muted); margin-top: 2px;
+  }
+  /* WiFi signal rings */
+  .ap-node::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70px; height: 70px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,212,255,0.12);
+    pointer-events: none;
+  }
+
+  /* Cattle dots */
+  .cattle-dots {
+    display: flex; flex-wrap: wrap; gap: 4px;
+    margin-top: 12px;
+  }
+  .cdot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--amber);
+    opacity: 0.6;
+  }
+  .cdot.open { background: var(--green); }
+
+  /* Server node */
+  .server-row {
+    display: flex; justify-content: center;
+    margin-top: 16px;
+  }
+  .server-node {
+    background: rgba(176,109,255,0.08);
+    border: 2px solid rgba(176,109,255,0.4);
+    border-radius: 10px;
+    padding: 12px 24px;
+    text-align: center;
+    position: relative;
+  }
+  .server-node .sn-icon { font-size: 24px; }
+  .server-node .sn-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px; font-weight: 700; color: #fff;
+    margin-top: 4px;
+  }
+  .server-node .sn-spec {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--purple);
+    margin-top: 2px;
+  }
+
+  /* Arrow */
+  .arr {
+    display: flex; justify-content: center; align-items: center;
+    gap: 8px; padding: 6px 0;
+  }
+  .arr-line {
+    width: 2px; height: 24px;
+    background: linear-gradient(to bottom, var(--border), var(--cyan));
+    position: relative;
+  }
+  .arr-line::after {
+    content: '▼'; position: absolute; bottom: -13px;
+    left: 50%; transform: translateX(-50%);
+    font-size: 10px; color: var(--cyan);
+  }
+  .arr-lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--muted);
+    background: var(--bg); padding: 2px 8px;
+    border: 1px solid var(--border); border-radius: 20px;
+  }
+
+  /* ===== ARCH LAYERS ===== */
+  .layers { display: flex; flex-direction: column; gap: 6px; }
+  .layer-lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 2px; text-transform: uppercase;
+    padding: 0 6px; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .layer-lbl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    flex: 1; min-width: 145px; max-width: 210px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+  .card.cyan  { border-color: rgba(0,212,255,0.25); }  .card.cyan::before  { background: var(--cyan); }  .card.cyan:hover  { border-color: var(--cyan); }
+  .card.green { border-color: rgba(57,255,110,0.25); } .card.green::before { background: var(--green); } .card.green:hover { border-color: var(--green); }
+  .card.amber { border-color: rgba(255,184,48,0.25); } .card.amber::before { background: var(--amber); } .card.amber:hover { border-color: var(--amber); }
+  .card.red   { border-color: rgba(255,77,109,0.25); } .card.red::before   { background: var(--red); }   .card.red:hover   { border-color: var(--red); }
+  .card.purple{ border-color: rgba(176,109,255,0.25);} .card.purple::before{ background: var(--purple);} .card.purple:hover{ border-color: var(--purple);}
+  .card.orange{ border-color: rgba(255,122,48,0.25); } .card.orange::before{ background: var(--orange);} .card.orange:hover{ border-color: var(--orange);}
+
+  .card-icon { font-size: 20px; margin-bottom: 7px; display: block; }
+  .card-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px; font-weight: 700; color: #fff;
+    margin-bottom: 6px;
+  }
+  .card-spec {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--muted); line-height: 1.75;
+  }
+  .card.cyan   .val { color: var(--cyan); }
+  .card.green  .val { color: var(--green); }
+  .card.amber  .val { color: var(--amber); }
+  .card.red    .val { color: var(--red); }
+  .card.purple .val { color: var(--purple); }
+  .card.orange .val { color: var(--orange); }
+
+  /* WiFi plan box */
+  .wifi-plan {
+    background: var(--card);
+    border: 1px solid rgba(0,212,255,0.3);
+    border-radius: 12px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .wp-item { display: flex; flex-direction: column; gap: 4px; }
+  .wp-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .wp-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px; font-weight: 700; color: var(--cyan);
+  }
+  .wp-note { font-size: 12px; color: var(--muted); }
+
+  /* Component table */
+  .comp-table {
+    width: 100%; border-collapse: separate; border-spacing: 0 5px;
+    margin-top: 8px;
+  }
+  .comp-table th {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 2px;
+    color: var(--muted); text-align: left;
+    padding: 6px 12px; text-transform: uppercase;
+  }
+  .comp-table td {
+    background: var(--card); padding: 11px 12px;
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .comp-table td:first-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); }
+  .comp-table td:last-child  { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; color: var(--muted); font-size: 12px; }
+  .comp-table tr:hover td { border-color: rgba(0,212,255,0.2); }
+  .chip {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; padding: 2px 7px;
+    border-radius: 4px; margin: 1px;
+  }
+  .c-i2c    { background: rgba(0,212,255,0.1);  color: var(--cyan);   border: 1px solid rgba(0,212,255,0.3); }
+  .c-spi    { background: rgba(57,255,110,0.1); color: var(--green);  border: 1px solid rgba(57,255,110,0.3);}
+  .c-uart   { background: rgba(255,184,48,0.1); color: var(--amber);  border: 1px solid rgba(255,184,48,0.3);}
+  .c-adc    { background: rgba(176,109,255,0.1);color: var(--purple); border: 1px solid rgba(176,109,255,0.3);}
+  .c-wire   { background: rgba(255,77,109,0.1); color: var(--red);    border: 1px solid rgba(255,77,109,0.3);}
+  .c-wifi   { background: rgba(0,212,255,0.08); color: var(--cyan);   border: 1px solid rgba(0,212,255,0.3);}
+
+  /* Change summary */
+  .change-box {
+    background: rgba(57,255,110,0.04);
+    border: 1px solid rgba(57,255,110,0.2);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .ch-item { display: flex; align-items: flex-start; gap: 10px; }
+  .ch-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .ch-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .ch-text strong { color: var(--green); display: block; font-size: 13px; }
+
+  .removed {
+    text-decoration: line-through;
+    opacity: 0.4;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="badge">Closed Dairy Compound · WiFi Architecture v2.0</div>
+    <h1>Cattle Smart Wearable<br><span>WiFi-Based Compound System</span></h1>
+    <p>1 Acre compound · 100–500 cattle · Shed + Open area · Real-time monitoring</p>
+  </div>
+
+  <!-- Info pills -->
+  <div class="info-pills">
+    <div class="pill cyan">📶 WiFi 802.11 b/g/n</div>
+    <div class="pill green">🐄 Up to 500 cattle</div>
+    <div class="pill amber">🏠 Shed + Open zone</div>
+    <div class="pill red">⚡ Solar + Battery</div>
+    <div class="pill cyan">📡 3–4 Access Points</div>
+  </div>
+
+  <!-- WiFi Plan Numbers -->
+  <div class="sec-title">📶 WiFi Network Plan for 1 Acre</div>
+  <div class="wifi-plan">
+    <div class="wp-item">
+      <div class="wp-label">Access Points Needed</div>
+      <div class="wp-val">3 – 4 APs</div>
+      <div class="wp-note">Covers full 1 acre with overlap zones</div>
+    </div>
+    <div class="wp-item">
+      <div class="wp-label">Each AP Coverage</div>
+      <div class="wp-val">~30m radius</div>
+      <div class="wp-note">Sufficient for shed + open area</div>
+    </div>
+    <div class="wp-item">
+      <div class="wp-label">Protocol</div>
+      <div class="wp-val">WiFi Mesh</div>
+      <div class="wp-note">All APs linked to central server</div>
+    </div>
+    <div class="wp-item">
+      <div class="wp-label">Collar Radio</div>
+      <div class="wp-val">ESP32 WiFi</div>
+      <div class="wp-note">Built-in, no extra module needed</div>
+    </div>
+    <div class="wp-item">
+      <div class="wp-label">Data Frequency</div>
+      <div class="wp-val">Every 30s</div>
+      <div class="wp-note">Real-time vs LoRa's 5–10 min</div>
+    </div>
+    <div class="wp-item">
+      <div class="wp-label">Max Devices / AP</div>
+      <div class="wp-val">~150</div>
+      <div class="wp-note">500 cattle ÷ 4 APs = 125 each ✓</div>
+    </div>
+  </div>
+
+  <!-- Compound Map -->
+  <div class="sec-title">🗺️ Compound Layout & AP Placement</div>
+  <div class="compound-map">
+    <div class="map-title">// DAIRY COMPOUND · TOP VIEW · 1 ACRE</div>
+
+    <div class="compound">
+      <!-- Shed Zone -->
+      <div class="zone-shed">
+        <div class="zone-label">🏠 SHED AREA</div>
+        <div class="ap-grid">
+          <div class="ap-node">
+            <span class="ap-icon">📡</span>
+            <div class="ap-name">AP-01</div>
+            <div class="ap-range">Shed North</div>
+          </div>
+          <div class="ap-node">
+            <span class="ap-icon">📡</span>
+            <div class="ap-name">AP-02</div>
+            <div class="ap-range">Shed South</div>
+          </div>
+        </div>
+        <div style="margin-top:14px; font-size:11px; color:var(--muted); font-family:'Share Tech Mono',monospace;">CATTLE IN SHED</div>
+        <div class="cattle-dots" style="margin-top:6px;">
+          <!-- ~30 dots representing shed cattle -->
+          <div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div>
+          <div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div>
+          <div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div>
+          <div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div>
+          <div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div>
+          <div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div><div class="cdot"></div>
+        </div>
+        <div style="margin-top:12px; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--amber);">
+          ↳ Milking zone<br>↳ Stall sensors<br>↳ Feed trough area
+        </div>
+      </div>
+
+      <!-- Open Zone -->
+      <div class="zone-open">
+        <div class="zone-label">🌿 OPEN AREA</div>
+        <div class="ap-grid">
+          <div class="ap-node">
+            <span class="ap-icon">📡</span>
+            <div class="ap-name">AP-03</div>
+            <div class="ap-range">Open East</div>
+          </div>
+          <div class="ap-node">
+            <span class="ap-icon">📡</span>
+            <div class="ap-name">AP-04</div>
+            <div class="ap-range">Open West</div>
+          </div>
+        </div>
+        <div style="margin-top:14px; font-size:11px; color:var(--muted); font-family:'Share Tech Mono',monospace;">CATTLE IN OPEN</div>
+        <div class="cattle-dots" style="margin-top:6px;">
+          <div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div>
+          <div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div>
+          <div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div>
+          <div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div><div class="cdot open"></div>
+        </div>
+        <div style="margin-top:12px; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--green);">
+          ↳ Grazing zone<br>↳ Water trough area<br>↳ Exercise area
+        </div>
+      </div>
+    </div>
+
+    <!-- Server -->
+    <div class="arr"><div class="arr-line"></div><div class="arr-lbl">WiFi MESH → LAN</div><div class="arr-line"></div></div>
+    <div class="server-row">
+      <div class="server-node">
+        <div class="sn-icon">🖥️</div>
+        <div class="sn-name">Farm Local Server / Router</div>
+        <div class="sn-spec">Raspberry Pi 4 · 4G Internet Uplink · Local DB</div>
+      </div>
+    </div>
+    <div class="arr"><div class="arr-line"></div><div class="arr-lbl">INTERNET</div><div class="arr-line"></div></div>
+    <div class="server-row">
+      <div class="server-node" style="border-color: rgba(57,255,110,0.4); background: rgba(57,255,110,0.05);">
+        <div class="sn-icon">☁️</div>
+        <div class="sn-name">Cloud + Farmer App</div>
+        <div class="sn-spec" style="color:var(--green)">Firebase / AWS IoT · iOS + Android Dashboard</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Architecture Layers -->
+  <div class="sec-title">🏗️ Updated Hardware Architecture</div>
+  <div class="layers">
+
+    <div class="layer-lbl">⚡ Power — unchanged</div>
+    <div class="row">
+      <div class="card amber">
+        <span class="card-icon">☀️</span>
+        <div class="card-title">Solar Panel</div>
+        <div class="card-spec"><span class="val">5V / 100mA flex</span><span>Collar-mounted</span></div>
+      </div>
+      <div class="card amber">
+        <span class="card-icon">🔋</span>
+        <div class="card-title">Li-Po Battery</div>
+        <div class="card-spec"><span class="val">3.7V / 1500mAh</span><span>Reduced size vs LoRa build</span><span>3–5 day backup</span></div>
+      </div>
+      <div class="card amber">
+        <span class="card-icon">⚙️</span>
+        <div class="card-title">PMIC</div>
+        <div class="card-spec"><span class="val">TP4056 + LDO</span><span>3.3V regulated</span></div>
+      </div>
+    </div>
+
+    <div class="arr"><div class="arr-line"></div></div>
+
+    <div class="layer-lbl">🧠 Core MCU — WiFi built-in, NO extra radio needed</div>
+    <div class="row" style="justify-content:center">
+      <div class="card cyan" style="max-width:300px; min-width:220px; border-width:2px; padding:20px;">
+        <span class="card-icon">💻</span>
+        <div class="card-title">ESP32-S3 (WiFi Native)</div>
+        <div class="card-spec">
+          <span class="val">Dual-core 240MHz</span>
+          <span>✅ WiFi 802.11 b/g/n built-in</span>
+          <span>✅ BLE 5.0 for phone pairing</span>
+          <span>I2C · SPI · UART · ADC · GPIO</span>
+          <span class="val">No LoRa / NB-IoT module needed</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="arr"><div class="arr-line"></div></div>
+
+    <div class="layer-lbl">🔬 Sensors — Activity · Health · Reproduction · Feeding</div>
+    <div class="row">
+      <div class="card cyan">
+        <span class="card-icon">🏃</span>
+        <div class="card-title">Activity (IMU)</div>
+        <div class="card-spec">
+          <span class="val">MPU-6050</span>
+          <span>Steps · Posture</span>
+          <span>Grazing angle</span>
+          <span>Lying vs Standing</span>
+          <span class="val">→ I²C</span>
+        </div>
+      </div>
+      <div class="card red">
+        <span class="card-icon">🌡️</span>
+        <div class="card-title">Body Temp</div>
+        <div class="card-spec">
+          <span class="val">DS18B20</span>
+          <span>Ear canal probe</span>
+          <span>Fever detection</span>
+          <span>±0.5°C accuracy</span>
+          <span class="val">→ 1-Wire</span>
+        </div>
+      </div>
+      <div class="card red">
+        <span class="card-icon">❤️</span>
+        <div class="card-title">Heart Rate + SpO₂</div>
+        <div class="card-spec">
+          <span class="val">MAX30102</span>
+          <span>Optical PPG</span>
+          <span>Pulse + oxygen</span>
+          <span>Stress detection</span>
+          <span class="val">→ I²C</span>
+        </div>
+      </div>
+      <div class="card green">
+        <span class="card-icon">🐄</span>
+        <div class="card-title">Rumination</div>
+        <div class="card-spec">
+          <span class="val">MEMS Mic</span>
+          <span>Jaw chewing cycles</span>
+          <span>Feeding health flag</span>
+          <span>Illness early warn</span>
+          <span class="val">→ ADC</span>
+        </div>
+      </div>
+      <div class="card purple">
+        <span class="card-icon">🌸</span>
+        <div class="card-title">Estrus / Calving</div>
+        <div class="card-spec">
+          <span class="val">LMT70 Probe</span>
+          <span>0.1°C precision</span>
+          <span>Heat detection</span>
+          <span>Pre-calving alert</span>
+          <span class="val">→ ADC</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="arr"><div class="arr-line"></div><div class="arr-lbl">WiFi 802.11</div><div class="arr-line"></div></div>
+
+    <div class="layer-lbl">📶 Network — WiFi Mesh (replaces LoRa + NB-IoT)</div>
+    <div class="row">
+      <div class="card cyan">
+        <span class="card-icon">📡</span>
+        <div class="card-title">AP-01 · AP-02</div>
+        <div class="card-spec">
+          <span class="val">Shed Area</span>
+          <span>Waterproof enclosure</span>
+          <span>PoE powered</span>
+          <span>~150 devices each</span>
+        </div>
+      </div>
+      <div class="card cyan">
+        <span class="card-icon">📡</span>
+        <div class="card-title">AP-03 · AP-04</div>
+        <div class="card-spec">
+          <span class="val">Open Area</span>
+          <span>Outdoor rated</span>
+          <span>Pole/fence mount</span>
+          <span>Full compound cover</span>
+        </div>
+      </div>
+      <div class="card orange">
+        <span class="card-icon">🖥️</span>
+        <div class="card-title">Local Server</div>
+        <div class="card-spec">
+          <span class="val">Raspberry Pi 4</span>
+          <span>MQTT broker</span>
+          <span>Local database</span>
+          <span>Works offline too</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- What changed -->
+  <div class="sec-title">✅ What Changed from LoRa Design</div>
+  <div class="change-box">
+    <div class="ch-item">
+      <div class="ch-icon">❌</div>
+      <div class="ch-text"><strong>Removed: SX1276 LoRa</strong>Not needed — WiFi covers entire compound</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">❌</div>
+      <div class="ch-text"><strong>Removed: SIM7000G NB-IoT</strong>No cellular needed inside compound</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">❌</div>
+      <div class="ch-text"><strong>Removed: NEO-6M GPS</strong>Indoor positioning via WiFi AP signal instead</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">✅</div>
+      <div class="ch-text"><strong>Added: WiFi Mesh (4 APs)</strong>Full compound coverage, real-time 30s updates</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">✅</div>
+      <div class="ch-text"><strong>Added: Raspberry Pi Server</strong>Local processing, works even if internet is down</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">✅</div>
+      <div class="ch-text"><strong>WiFi RSSI Positioning</strong>Zone detection (shed vs open) using AP signal strength</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">💰</div>
+      <div class="ch-text"><strong>Cost Reduced ~40%</strong>Removing LoRa + GPS + cellular saves ₹800–1200 per collar</div>
+    </div>
+    <div class="ch-item">
+      <div class="ch-icon">⚡</div>
+      <div class="ch-text"><strong>Lower Power Collar</strong>Smaller battery needed — WiFi at low TX is efficient</div>
+    </div>
+  </div>
+
+  <!-- Updated component table -->
+  <div class="sec-title">📋 Final Component List (WiFi Build)</div>
+  <table class="comp-table">
+    <thead>
+      <tr><th>#</th><th>Component</th><th>Model</th><th>Interface</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>01</td><td>Microcontroller</td><td>ESP32-S3</td><td><span class="chip c-wifi">WiFi</span><span class="chip c-i2c">I2C</span><span class="chip c-uart">UART</span></td><td>Brain + WiFi radio (built-in)</td></tr>
+      <tr><td>02</td><td>IMU / Accelerometer</td><td>MPU-6050</td><td><span class="chip c-i2c">I2C</span></td><td>Activity: steps, posture, grazing</td></tr>
+      <tr><td>03</td><td>Body Temp Probe</td><td>DS18B20</td><td><span class="chip c-wire">1-Wire</span></td><td>Core body temp, fever detection</td></tr>
+      <tr><td>04</td><td>Heart Rate + SpO₂</td><td>MAX30102</td><td><span class="chip c-i2c">I2C</span></td><td>Pulse rate and blood oxygen</td></tr>
+      <tr><td>05</td><td>Rumination Mic</td><td>INMP441 MEMS</td><td><span class="chip c-i2c">I2S</span></td><td>Jaw chewing, feeding detection</td></tr>
+      <tr><td>06</td><td>Estrus Temp Probe</td><td>LMT70</td><td><span class="chip c-adc">ADC</span></td><td>Heat detection, calving alert</td></tr>
+      <tr><td>07</td><td>Solar Panel</td><td>5V 100mA Flex</td><td>—</td><td>Continuous outdoor charging</td></tr>
+      <tr><td>08</td><td>Li-Po Battery</td><td>3.7V / 1500mAh</td><td>—</td><td>3–5 day power backup</td></tr>
+      <tr><td>09</td><td>PMIC / Charger</td><td>TP4056 + LM1117</td><td>—</td><td>Solar charge management</td></tr>
+      <tr><td>10</td><td>WiFi Access Points</td><td>4× Outdoor AP</td><td><span class="chip c-wifi">802.11</span></td><td>Full compound mesh coverage</td></tr>
+      <tr><td>11</td><td>Local Server</td><td>Raspberry Pi 4</td><td><span class="chip c-wifi">LAN</span></td><td>MQTT broker, local DB, offline ops</td></tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

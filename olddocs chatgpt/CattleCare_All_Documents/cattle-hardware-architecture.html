@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cattle Smart Wearable — Hardware Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0f0d;
+    --surface: #0f1a14;
+    --card: #111f17;
+    --border: #1e3a28;
+    --green: #2dff7a;
+    --green2: #1adb5f;
+    --teal: #00e5cc;
+    --amber: #ffb830;
+    --red: #ff4d6d;
+    --blue: #4db8ff;
+    --purple: #b06dff;
+    --text: #d0ead8;
+    --muted: #5a7a64;
+    --wire: #1e3a28;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Exo 2', sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(45,255,122,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(45,255,122,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .header .badge {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 3px;
+    border: 1px solid var(--green);
+    padding: 4px 14px;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+  .header h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(26px, 5vw, 44px);
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 1px;
+    line-height: 1.1;
+  }
+  .header h1 span { color: var(--green); }
+  .header p {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.5px;
+  }
+
+  /* Architecture diagram container */
+  .arch {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Layer label */
+  .layer-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .layer-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Row of cards */
+  .row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Component card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    flex: 1;
+    min-width: 150px;
+    max-width: 220px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .card.green::before { background: var(--green); border-color: var(--green); }
+  .card.green { border-color: rgba(45,255,122,0.25); }
+  .card.green:hover { border-color: var(--green); }
+
+  .card.teal::before { background: var(--teal); }
+  .card.teal { border-color: rgba(0,229,204,0.25); }
+  .card.teal:hover { border-color: var(--teal); }
+
+  .card.amber::before { background: var(--amber); }
+  .card.amber { border-color: rgba(255,184,48,0.25); }
+  .card.amber:hover { border-color: var(--amber); }
+
+  .card.red::before { background: var(--red); }
+  .card.red { border-color: rgba(255,77,109,0.25); }
+  .card.red:hover { border-color: var(--red); }
+
+  .card.blue::before { background: var(--blue); }
+  .card.blue { border-color: rgba(77,184,255,0.25); }
+  .card.blue:hover { border-color: var(--blue); }
+
+  .card.purple::before { background: var(--purple); }
+  .card.purple { border-color: rgba(176,109,255,0.25); }
+  .card.purple:hover { border-color: var(--purple); }
+
+  .card-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .card-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .card-spec {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .card-spec span {
+    display: block;
+  }
+  .card-spec .val {
+    font-size: 10px;
+  }
+  .card.green .card-spec .val { color: var(--green); }
+  .card.teal .card-spec .val { color: var(--teal); }
+  .card.amber .card-spec .val { color: var(--amber); }
+  .card.red .card-spec .val { color: var(--red); }
+  .card.blue .card-spec .val { color: var(--blue); }
+  .card.purple .card-spec .val { color: var(--purple); }
+
+  /* Center MCU card */
+  .card.central {
+    max-width: 260px;
+    min-width: 200px;
+    border-width: 2px;
+    padding: 20px;
+  }
+  .card.central .card-title {
+    font-size: 17px;
+  }
+
+  /* Arrow connector */
+  .connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    position: relative;
+  }
+  .connector .arrow-line {
+    width: 2px;
+    height: 28px;
+    background: linear-gradient(to bottom, var(--border), var(--green));
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+  .connector .arrow-line::after {
+    content: '▼';
+    position: absolute;
+    bottom: -14px;
+    font-size: 10px;
+    color: var(--green);
+  }
+  .connector .label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    background: var(--bg);
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+  }
+
+  /* Wide connector bar */
+  .bus-bar {
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .bus-bar .bus-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 2px;
+  }
+  .bus-item {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 10px;
+  }
+
+  /* Divider between MCU section and sensors */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+  }
+  .section-divider .line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+  }
+  .section-divider .text {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  /* Connection legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 28px;
+    padding: 16px 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* Component table */
+  .comp-table {
+    margin-top: 32px;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 6px;
+  }
+  .comp-table th {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-align: left;
+    padding: 6px 14px;
+    text-transform: uppercase;
+  }
+  .comp-table td {
+    background: var(--card);
+    padding: 12px 14px;
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .comp-table td:first-child {
+    border-left: 1px solid var(--border);
+    border-radius: 8px 0 0 8px;
+  }
+  .comp-table td:last-child {
+    border-right: 1px solid var(--border);
+    border-radius: 0 8px 8px 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .comp-table tr:hover td { border-color: rgba(45,255,122,0.2); }
+  .chip {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+  }
+  .chip.i2c { background: rgba(0,229,204,0.1); color: var(--teal); border: 1px solid rgba(0,229,204,0.3); }
+  .chip.spi { background: rgba(77,184,255,0.1); color: var(--blue); border: 1px solid rgba(77,184,255,0.3); }
+  .chip.uart { background: rgba(255,184,48,0.1); color: var(--amber); border: 1px solid rgba(255,184,48,0.3); }
+  .chip.adc { background: rgba(176,109,255,0.1); color: var(--purple); border: 1px solid rgba(176,109,255,0.3); }
+  .chip.gpio { background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.3); }
+
+  .section-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 36px;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Two-column sensor groups */
+  .sensor-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .sensor-group {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .sg-header {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sg-item {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 4px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.4;
+  }
+  .sg-item::before {
+    content: '→';
+    font-family: monospace;
+    font-size: 11px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .sg-item strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="badge">AgriTech · Hardware Architecture v1.0</div>
+    <h1>Cattle Smart Wearable<br><span>System Architecture</span></h1>
+    <p>Full hardware block diagram · Component list · Bus connections</p>
+  </div>
+
+  <!-- Architecture Diagram -->
+  <div class="arch">
+
+    <!-- Layer 1: Power -->
+    <div class="layer-label">⚡ Layer 1 — Power System</div>
+    <div class="row">
+      <div class="card amber">
+        <span class="card-icon">☀️</span>
+        <div class="card-title">Solar Panel</div>
+        <div class="card-spec">
+          <span class="val">5V / 100mA</span>
+          <span>Mini flex panel</span>
+          <span>Collar-mounted</span>
+        </div>
+      </div>
+      <div class="card amber">
+        <span class="card-icon">🔋</span>
+        <div class="card-title">Li-Po Battery</div>
+        <div class="card-spec">
+          <span class="val">3.7V / 2000mAh</span>
+          <span>Rechargeable</span>
+          <span>7–10 day backup</span>
+        </div>
+      </div>
+      <div class="card amber">
+        <span class="card-icon">⚙️</span>
+        <div class="card-title">PMIC / Regulator</div>
+        <div class="card-spec">
+          <span class="val">3.3V / 5V rails</span>
+          <span>Solar MPPT</span>
+          <span>Low-power modes</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector">
+      <div class="arrow-line"></div>
+      <div class="label">VCC POWER RAIL</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Layer 2: MCU -->
+    <div class="layer-label">🧠 Layer 2 — Core Processing Unit</div>
+    <div class="row" style="justify-content:center">
+      <div class="card green central">
+        <span class="card-icon">💻</span>
+        <div class="card-title">MCU — ESP32-S3</div>
+        <div class="card-spec">
+          <span class="val">Dual-core 240MHz</span>
+          <span>WiFi + BLE 5.0 built-in</span>
+          <span>512KB SRAM · 8MB Flash</span>
+          <span>Low-power deep sleep</span>
+          <span>I2C · SPI · UART · ADC · GPIO</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector">
+      <div class="arrow-line"></div>
+      <div class="label">PERIPHERAL BUS</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Bus bar -->
+    <div class="bus-bar">
+      <span class="bus-label">BUS PROTOCOLS</span>
+      <span class="bus-item">I²C</span>
+      <span class="bus-item">SPI</span>
+      <span class="bus-item">UART / NMEA</span>
+      <span class="bus-item">ADC (12-bit)</span>
+      <span class="bus-item">GPIO PWM</span>
+      <span class="bus-item">1-Wire</span>
+    </div>
+
+    <div class="connector">
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Layer 3: Sensors -->
+    <div class="layer-label">📡 Layer 3 — Sensors</div>
+    <div class="row">
+
+      <!-- Activity Monitoring -->
+      <div class="card teal">
+        <span class="card-icon">🏃</span>
+        <div class="card-title">Activity Monitor</div>
+        <div class="card-spec">
+          <span class="val">MPU-6050</span>
+          <span>3-axis Accel + Gyro</span>
+          <span>Steps · Posture · Rest</span>
+          <span>Grazing detection</span>
+          <span class="val">→ I²C</span>
+        </div>
+      </div>
+
+      <!-- Health: Temp -->
+      <div class="card red">
+        <span class="card-icon">🌡️</span>
+        <div class="card-title">Body Temperature</div>
+        <div class="card-spec">
+          <span class="val">DS18B20</span>
+          <span>±0.5°C accuracy</span>
+          <span>Ear/rectal probe</span>
+          <span>Fever alert logic</span>
+          <span class="val">→ 1-Wire</span>
+        </div>
+      </div>
+
+      <!-- Health: Heart rate -->
+      <div class="card red">
+        <span class="card-icon">❤️</span>
+        <div class="card-title">Heart Rate + SpO₂</div>
+        <div class="card-spec">
+          <span class="val">MAX30102</span>
+          <span>PPG optical sensor</span>
+          <span>HR + blood oxygen</span>
+          <span>Pulse anomaly alert</span>
+          <span class="val">→ I²C</span>
+        </div>
+      </div>
+
+      <!-- Rumination -->
+      <div class="card green">
+        <span class="card-icon">🐄</span>
+        <div class="card-title">Rumination Sensor</div>
+        <div class="card-spec">
+          <span class="val">Piezo + MEMS Mic</span>
+          <span>Jaw movement detect</span>
+          <span>Chewing cycles/hr</span>
+          <span>Illness early flag</span>
+          <span class="val">→ ADC / I²C</span>
+        </div>
+      </div>
+
+      <!-- GPS -->
+      <div class="card blue">
+        <span class="card-icon">📍</span>
+        <div class="card-title">GPS Module</div>
+        <div class="card-spec">
+          <span class="val">NEO-6M / L76K</span>
+          <span>±2.5m accuracy</span>
+          <span>NMEA output</span>
+          <span>Geo-fence logic</span>
+          <span class="val">→ UART</span>
+        </div>
+      </div>
+
+      <!-- Breeding / Reproduction -->
+      <div class="card purple">
+        <span class="card-icon">🌡️</span>
+        <div class="card-title">Vaginal Temp (Estrus)</div>
+        <div class="card-spec">
+          <span class="val">LMT70 + Probe</span>
+          <span>0.1°C resolution</span>
+          <span>Pre-calving detect</span>
+          <span>Ovulation cycle track</span>
+          <span class="val">→ ADC</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="connector">
+      <div class="arrow-line"></div>
+      <div class="label">DATA OUTPUT</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Layer 4: Communication -->
+    <div class="layer-label">📶 Layer 4 — Communication</div>
+    <div class="row">
+      <div class="card blue">
+        <span class="card-icon">📡</span>
+        <div class="card-title">LoRa Module</div>
+        <div class="card-spec">
+          <span class="val">SX1276 · 868MHz</span>
+          <span>Range: 2–5 km</span>
+          <span>Rural field coverage</span>
+          <span class="val">→ SPI</span>
+        </div>
+      </div>
+      <div class="card blue">
+        <span class="card-icon">📱</span>
+        <div class="card-title">BLE 5.0</div>
+        <div class="card-spec">
+          <span class="val">Built-in ESP32</span>
+          <span>Phone pairing</span>
+          <span>Nearby sync</span>
+          <span class="val">→ Internal</span>
+        </div>
+      </div>
+      <div class="card blue">
+        <span class="card-icon">🌐</span>
+        <div class="card-title">NB-IoT / 4G</div>
+        <div class="card-spec">
+          <span class="val">SIM7000G</span>
+          <span>Cellular fallback</span>
+          <span>Cloud push</span>
+          <span class="val">→ UART</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="connector">
+      <div class="arrow-line"></div>
+      <div class="label">UPLINK</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Layer 5: Cloud -->
+    <div class="layer-label">☁️ Layer 5 — Cloud & App</div>
+    <div class="row">
+      <div class="card green">
+        <span class="card-icon">🗼</span>
+        <div class="card-title">LoRa Gateway</div>
+        <div class="card-spec">
+          <span class="val">Farm-side hub</span>
+          <span>Aggregates all collars</span>
+          <span>WiFi → Cloud</span>
+        </div>
+      </div>
+      <div class="card green">
+        <span class="card-icon">☁️</span>
+        <div class="card-title">Cloud Server</div>
+        <div class="card-spec">
+          <span class="val">MQTT / HTTP</span>
+          <span>AWS IoT / Firebase</span>
+          <span>Data storage + AI</span>
+        </div>
+      </div>
+      <div class="card green">
+        <span class="card-icon">📲</span>
+        <div class="card-title">Farmer App</div>
+        <div class="card-spec">
+          <span class="val">iOS + Android</span>
+          <span>Dashboard · Alerts</span>
+          <span>Herd analytics</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div>I²C Bus</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>SPI Bus</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>UART / NMEA</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>ADC Analog Input</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>1-Wire Protocol</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>GPIO / PWM</div>
+  </div>
+
+  <!-- Component Table -->
+  <div class="section-title">📋 Full Component List</div>
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Component</th>
+        <th>Model / Spec</th>
+        <th>Interface</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>01</td>
+        <td>Microcontroller</td>
+        <td>ESP32-S3</td>
+        <td><span class="chip i2c">I2C</span><span class="chip spi">SPI</span><span class="chip uart">UART</span></td>
+        <td>Central brain — processing, WiFi, BLE</td>
+      </tr>
+      <tr>
+        <td>02</td>
+        <td>IMU / Accelerometer</td>
+        <td>MPU-6050</td>
+        <td><span class="chip i2c">I2C</span></td>
+        <td>Activity: steps, posture, grazing detection</td>
+      </tr>
+      <tr>
+        <td>03</td>
+        <td>Body Temp Probe</td>
+        <td>DS18B20</td>
+        <td><span class="chip gpio">1-Wire</span></td>
+        <td>Core body temp, fever detection</td>
+      </tr>
+      <tr>
+        <td>04</td>
+        <td>Heart Rate + SpO₂</td>
+        <td>MAX30102</td>
+        <td><span class="chip i2c">I2C</span></td>
+        <td>Pulse rate and blood oxygen monitoring</td>
+      </tr>
+      <tr>
+        <td>05</td>
+        <td>Rumination Sensor</td>
+        <td>Piezo + MEMS Mic</td>
+        <td><span class="chip adc">ADC</span></td>
+        <td>Chewing/jaw movement cycle tracking</td>
+      </tr>
+      <tr>
+        <td>06</td>
+        <td>GPS Module</td>
+        <td>NEO-6M</td>
+        <td><span class="chip uart">UART</span></td>
+        <td>Real-time location, geo-fencing</td>
+      </tr>
+      <tr>
+        <td>07</td>
+        <td>Estrus Temp Sensor</td>
+        <td>LMT70 Probe</td>
+        <td><span class="chip adc">ADC</span></td>
+        <td>Vaginal temp for heat detection, calving</td>
+      </tr>
+      <tr>
+        <td>08</td>
+        <td>LoRa Radio</td>
+        <td>SX1276 868MHz</td>
+        <td><span class="chip spi">SPI</span></td>
+        <td>Long-range data transmission (2–5 km)</td>
+      </tr>
+      <tr>
+        <td>09</td>
+        <td>NB-IoT / 4G Module</td>
+        <td>SIM7000G</td>
+        <td><span class="chip uart">UART</span></td>
+        <td>Cellular fallback communication</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>Solar Panel</td>
+        <td>5V 100mA Flex</td>
+        <td>—</td>
+        <td>Continuous charging in outdoor conditions</td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td>Li-Po Battery</td>
+        <td>3.7V / 2000mAh</td>
+        <td>—</td>
+        <td>7–10 day backup power</td>
+      </tr>
+      <tr>
+        <td>12</td>
+        <td>PMIC</td>
+        <td>TP4056 + LM1117</td>
+        <td>—</td>
+        <td>Solar charging, voltage regulation</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Sensor groups explanation -->
+  <div class="section-title">🔬 Sensor Roles by Feature</div>
+  <div class="sensor-groups">
+
+    <div class="sensor-group">
+      <div class="sg-header" style="color:var(--teal)">🏃 Activity Monitoring</div>
+      <div class="sg-item"><strong>MPU-6050</strong> — detects steps, lying/standing, grazing vs resting posture via accelerometer + gyroscope</div>
+      <div class="sg-item"><strong>Algorithm</strong> — activity classified in firmware using threshold logic every 10 sec</div>
+    </div>
+
+    <div class="sensor-group">
+      <div class="sg-header" style="color:var(--red)">❤️ Health Monitoring</div>
+      <div class="sg-item"><strong>DS18B20</strong> — body temperature probe inserted in ear canal or rectum</div>
+      <div class="sg-item"><strong>MAX30102</strong> — optical PPG for heart rate and SpO₂ via skin contact</div>
+      <div class="sg-item"><strong>Piezo Mic</strong> — jaw vibration sensor for rumination count per hour</div>
+    </div>
+
+    <div class="sensor-group">
+      <div class="sg-header" style="color:var(--purple)">🌸 Reproduction & Breeding</div>
+      <div class="sg-item"><strong>LMT70 Probe</strong> — 0.1°C precision temperature sensor for vaginal temp drop (pre-calving) or rise (estrus)</div>
+      <div class="sg-item"><strong>MPU-6050</strong> — restlessness behavior indicates heat or imminent calving</div>
+    </div>
+
+    <div class="sensor-group">
+      <div class="sg-header" style="color:var(--green)">🌾 Feeding & Nutrition</div>
+      <div class="sg-item"><strong>MEMS Mic</strong> — rumination drop = reduced appetite, possible illness</div>
+      <div class="sg-item"><strong>IMU Posture</strong> — grazing time (head-down angle) vs idle time tracking</div>
+      <div class="sg-item"><strong>Cloud AI</strong> — daily grazing pattern trends flagged to farmer dashboard</div>
+    </div>
+
+    <div class="sensor-group">
+      <div class="sg-header" style="color:var(--blue)">📍 Location & Tracking</div>
+      <div class="sg-item"><strong>NEO-6M GPS</strong> — real-time coordinates sent every 5 min or on trigger</div>
+      <div class="sg-item"><strong>Geo-fence</strong> — boundary stored in firmware, alert if breached</div>
+    </div>
+
+    <div class="sensor-group">
+      <div class="sg-header" style="color:var(--amber)">⚡ Power Design</div>
+      <div class="sg-item"><strong>Solar + LiPo</strong> — daytime solar charging, night on battery</div>
+      <div class="sg-item"><strong>Deep Sleep</strong> — ESP32 sleeps between readings to conserve power</div>
+      <div class="sg-item"><strong>Target life</strong> — 7–10 days without sun, unlimited with solar exposure</div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>

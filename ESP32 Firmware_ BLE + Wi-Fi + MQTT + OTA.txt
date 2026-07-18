@@ -1,0 +1,193 @@
+#include <WiFi.h>
+#include <Preferences.h>
+#include <PubSubClient.h>
+#include <NimBLEDevice.h>
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <Update.h>
+#include <ArduinoOTA.h>
+
+Preferences preferences;
+
+// BLE UUIDs
+#define SERVICE_UUID        "0000abcd-0000-1000-8000-00805f9b34fb"
+#define CHARACTERISTIC_UUID "0000dcba-0000-1000-8000-00805f9b34fb"
+
+// MQTT client
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
+
+String deviceId, cattleId, ssid, password, mqttBroker, otaUrl;
+int mqttPort, intervalSec;
+
+NimBLECharacteristic *pCharacteristic;
+
+class ConfigCallback : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* pCharacteristic) override {
+    std::string value = pCharacteristic->getValue();
+    if (value.length() > 0) {
+      StaticJsonDocument<256> doc;
+      if (deserializeJson(doc, value) == DeserializationError::Ok) {
+        ssid = doc["wifi_ssid"].as<String>();
+        password = doc["wifi_password"].as<String>();
+        deviceId = doc["device_id"].as<String>();
+        cattleId = doc["cattle_id"].as<String>();
+        mqttBroker = doc["mqtt_broker"].as<String>();
+        mqttPort = doc["mqtt_port"].as<int>();
+        intervalSec = doc["interval"].as<int>();
+        otaUrl = doc["ota_url"] | "";
+
+        preferences.begin("config", false);
+        preferences.putString("ssid", ssid);
+        preferences.putString("password", password);
+        preferences.putString("device_id", deviceId);
+        preferences.putString("cattle_id", cattleId);
+        preferences.putString("mqtt_broker", mqttBroker);
+        preferences.putInt("mqtt_port", mqttPort);
+        preferences.putInt("interval", intervalSec);
+        preferences.putString("ota_url", otaUrl);
+        preferences.end();
+
+        Serial.println("Config saved! Reboot to apply.");
+      }
+    }
+  }
+};
+
+void connectWiFi() {
+  WiFi.begin(ssid.c_str(), password.c_str());
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\\nWi-Fi connected!");
+}
+
+void connectMQTT() {
+  mqttClient.setServer(mqttBroker.c_str(), mqttPort);
+  mqttClient.setCallback(mqttCallback);
+  while (!mqttClient.connected()) {
+    if (mqttClient.connect(deviceId.c_str())) {
+      Serial.println("MQTT connected");
+      mqttClient.subscribe(("cattle/cmd/" + deviceId).c_str());
+    } else {
+      delay(2000);
+    }
+  }
+}
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  String msg;
+  for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
+  Serial.printf("MQTT msg on %s: %s\\n", topic, msg.c_str());
+
+  if (msg.startsWith("OTA:")) {
+    String url = msg.substring(4);
+    startHttpOta(url);
+  }
+}
+
+void publishSensorData() {
+  StaticJsonDocument<256> doc;
+  doc["device_id"] = deviceId;
+  doc["cattle_id"] = cattleId;
+  doc["timestamp"] = millis();
+  doc["temp"] = 38.5 + random(-5, 5) * 0.1;
+  doc["accX"] = 0.12;
+  doc["accY"] = -0.04;
+  doc["accZ"] = 9.78;
+  doc["rumination_events"] = random(10, 20);
+  doc["battery"] = 3.8;
+
+  char buffer[256];
+  size_t n = serializeJson(doc, buffer);
+  mqttClient.publish(("cattle/data/" + deviceId).c_str(), buffer, n);
+}
+
+void startHttpOta(String url) {
+  WiFiClientSecure client;
+  HTTPClient http;
+
+  Serial.printf("Starting OTA update from: %s\\n", url.c_str());
+  if (http.begin(client, url)) {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      int contentLength = http.getSize();
+      WiFiClient* stream = http.getStreamPtr();
+
+      if (!Update.begin(contentLength)) {
+        Serial.println("Not enough space for OTA");
+        return;
+      }
+
+      size_t written = Update.writeStream(*stream);
+      if (written == contentLength && Update.end(true)) {
+        Serial.println("OTA Success, rebooting...");
+        ESP.restart();
+      } else {
+        Serial.printf("OTA Failed. Error #: %d\\n", Update.getError());
+      }
+    }
+    http.end();
+  } else {
+    Serial.println("HTTP connection failed");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  preferences.begin("config", true);
+  ssid = preferences.getString("ssid", "");
+  password = preferences.getString("password", "");
+  deviceId = preferences.getString("device_id", "esp32-cattle");
+  cattleId = preferences.getString("cattle_id", "C123");
+  mqttBroker = preferences.getString("mqtt_broker", "");
+  mqttPort = preferences.getInt("mqtt_port", 1883);
+  intervalSec = preferences.getInt("interval", 300);
+  otaUrl = preferences.getString("ota_url", "");
+  preferences.end();
+
+  if (ssid == "" || password == "") {
+    // BLE provisioning mode
+    NimBLEDevice::init(deviceId.c_str());
+    NimBLEServer *pServer = NimBLEDevice::createServer();
+    NimBLEService *pService = pServer->createService(SERVICE_UUID);
+    pCharacteristic = pService->createCharacteristic(
+                        CHARACTERISTIC_UUID,
+                        NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::READ);
+    pCharacteristic->setCallbacks(new ConfigCallback());
+    pService->start();
+    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    NimBLEDevice::startAdvertising();
+    Serial.println("BLE Provisioning Mode Started...");
+  } else {
+    // Normal operation
+    connectWiFi();
+    connectMQTT();
+
+    // Local OTA via Arduino IDE / LAN
+    ArduinoOTA.setHostname(deviceId.c_str());
+    ArduinoOTA.begin();
+  }
+}
+
+unsigned long lastPublish = 0;
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
+    unsigned long now = millis();
+    if (now - lastPublish > intervalSec * 1000) {
+      publishSensorData();
+      lastPublish = now;
+    }
+    mqttClient.loop();
+    ArduinoOTA.handle();
+  } else {
+    if (ssid != "" && password != "") {
+      if (WiFi.status() != WL_CONNECTED) connectWiFi();
+      if (!mqttClient.connected()) connectMQTT();
+    }
+  }
+}
