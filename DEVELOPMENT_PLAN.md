@@ -7,6 +7,67 @@ This document exists to answer one question at any point in the project: **what'
 
 ---
 
+## At a glance — feature status
+
+A scannable summary of everything below. ✅ = built and live-verified, 🟡 = partially built (see
+notes), ❌ = no code anywhere. This is a snapshot, not a spec — re-derive it from §3 and the code
+periodically rather than trusting it blindly.
+
+| Category | Feature | Status | Notes |
+|---|---|---|---|
+| **Core / Auth** | OTP, email/password, Google sign-in | ✅ | All 3 flows live-verified end-to-end (§3.4) |
+| | Cross-service auth (shared `JWT_SECRET`) | ✅ | Was silently broken platform-wide until fixed (§3.20) |
+| | Membership/webhook routes in `user-service` | ❌ | Commented out, has its own pre-existing bugs (§3.1, still open #11) |
+| | Role-based (admin) access | ❌ | Nothing sets a `role` claim in the JWT yet (still open #2) |
+| **Cattle & Herd** | CRUD, list + pagination | ✅ | (§3.11) |
+| | Cattle detail — all 9 tabs (Overview, Milk, Calving, Breeding, Medical, IoT Health, Expenses, Documents, Timeline) | ✅ | (§3.39) |
+| | Lifecycle: calving/calf creation, genealogy, archival, PDF export | ✅ | (§3.24) |
+| | Breeding cycle: heat → AI → pregnancy → calving, with reminders | ✅ | (§3.25) |
+| | Bull registry (structured breed-first picker) | ✅ | (§3.27) |
+| | Bull management screen (view/edit/sire history) | ❌ | Register-only today, no dedicated screen (still open #5) |
+| | Bull-suitability recommendations | ❌ | Needs a real body of linked data first (still open #7) |
+| | Goat breeding (structured bulls) | ❌ | Bull schema is cow/buffalo only (still open #6) |
+| | Archived-cattle list UI toggle | ❌ | Backend supports `includeArchived`, no UI toggle (still open #4) |
+| | Offline-first persistence | ✅ | SQLDelight cache + connectivity banner (§3.38) |
+| **IoT** | Device/sensor ingestion pipeline (MQTT → Mongo → ML → alerts → API → mobile) | ✅ | (§3.33) |
+| | Device↔cattle assignment actually taking effect | ✅ | Was a platform-wide silent no-op until fixed (§3.40) |
+| | Unpair action | ✅ | (§3.40) |
+| | Dedicated reassign-to-different-cattle screen | ❌ | Works today via unpair + re-pair (still open #16) |
+| | ESP32 firmware BLE provisioning | ❌ | Mobile's real BLE contract has **no matching firmware** in this repo at all (`IOT_DEVICE_DESIGN.md` §3.6.1, still open #19) |
+| | Live-vitals dashboard (running readings view, not just pairing) | 🟡 | Device status + temperature sparkline exist (§3.39); not a full live dashboard |
+| | Read/dismiss state for alerts | ❌ | Alerts just accumulate (still open #13) |
+| **Marketplace** | Cattle Hub: browse, bid, token-unlock paywall | ✅ | (§3.16) |
+| | Dairy shop: browse, cart, checkout | ✅ | (§3.16, §3.21) |
+| | Membership tier gating (Gold/Platinum) | ❌ | Grade/verification UI exists, no enforcement (Partial table) |
+| | Escrow / video-verification booking / micro-hubs | ❌ | Large, spec'd, zero code (Phase 3) |
+| **Wallet & Coins** | Balance, transactions, add-money | ✅ | (§3.13) |
+| | Coins reward/redemption economy | ✅ | (§3.21) |
+| | Escrow/reserved/token wallet states | ❌ | Plain balance only (Partial table) |
+| **Helper Mgmt** | Attendance, salary slips, contract upload | ✅ | Built end-to-end (§3.23) |
+| | Advance-tracking | ❌ | Schema field exists, unused (still open #3) |
+| **Money model** | Farm-wide Expense & Income tracking | ❌ | Home's "Expenses" quick-action is a dead stub; per-cattle version *is* built (§3.39, still open #17) |
+| | Milk pricing engine (fixed/daily/formula, FAT/SNF) | ❌ | Flat `MILK_PRICE_PER_LITER` used as an honest stand-in (still open #18) |
+| **Reports & Home** | Herd/per-cattle reports, home dashboard summary | ✅ | Both were silently all-zero before fixing (§3.18, §3.19) |
+| **Referral** | Code generation, referee tracking, coin rewards | ✅ | Built from scratch (§3.15, §3.21) |
+| **Notifications** | List, read/unread, real FCM push dispatch | ✅ | Real credentials verified live (§3.34) |
+| **Localization** | Infra + auth/home/settings/cattle/wallet/reports/helper screens (EN/HI/MR/GU) | ✅ | (§3.29/§3.31/§3.32) |
+| | Marketplace, referral, notifications list, IoT pairing screen | ❌ | Still hardcoded English (still open #10) |
+| **Infra** | Single shared MongoDB database | ✅ | (§3.35) |
+| | S3 uploads (code) | ✅ | Verified live in mock mode (§3.37) |
+| | S3 bucket/IAM/policy (real infra) | ❌ | User-side AWS setup still needed (still open #15) |
+| | `docker-compose` full integration test | ❌ | Each service verified in isolation only (still open #9) |
+| | Domain/use-case layer (`domain/usecase/`) | ❌ | Empty folder, logic lives in ViewModels/repos (Partial table) |
+| | Dark mode | ❌ | No theme support found (Pending list) |
+| | My Address / Help & Support screens | ❌ | Still placeholder stubs (Pending list) |
+| | Subscription/feature-flag gating | ❌ | No tier-based access control anywhere (Pending list) |
+| **Not started** | Admin (Angular) app | ❌ | Zero code |
+| | Delivery app | ❌ | Zero code |
+| | AI Revenue Planner | ❌ | Phase 4 |
+| | Digital Health Passport | ❌ | Depends on IoT pipeline (now unblocked, still not started) |
+| | Carbon credits / blockchain identity / federated-learning digital twin | ❌ | Phase 4, explicitly deferred by design |
+
+---
+
 ## 1. Where we are, in one paragraph
 
 The KMP mobile app (`godhan-app/`) has real, working-depth code for auth, cattle/herd management (all 9 spec'd detail tabs as of 2026-07-20, §3.39), cattle+dairy marketplace browsing, reports, referrals, notifications, offline-tolerant caching (§3.38), and profile. The backend (`godhan-services/`) has 9 Node.js microservices plus one Python ML service in varying states. **As of 2026-07-16 all 6 previously-crashing services now boot and were verified live against a local MongoDB** (see §3 for what changed); `user-service` was already fine and continues to work as before. No Admin (Angular) app and no Delivery app exist yet — both are full sections of the spec with zero code. **IoT (the ESP32 collar pipeline that much of the platform's differentiation depends on) is now a real, running, end-to-end pipeline** (§3.33, 2026-07-19) — device → MQTT ingestion → ML prediction → farmer-facing API → mobile UI — and, as of 2026-07-20, pairing a collar to a specific animal now actually takes effect end-to-end, which it silently never did before (§3.40).
