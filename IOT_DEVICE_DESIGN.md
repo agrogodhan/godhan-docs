@@ -241,6 +241,58 @@ Every iteration:
 4. Collar saves to NVS, stops BLE, connects WiFi → permanent operation
 5. BLE only re-activates on factory reset (hardware button hold)
 
+### 3.6.1 As-built: mobile app's real BLE provisioning (2026-07-20)
+
+The Kotlin mobile app (`godhan-app`) actually implements BLE provisioning today —
+`IotPairingScreen`/`IotPairingViewModel` (an 8-step flow) + `AndroidBluetoothScanner` — but it
+was built against a **different, more granular BLE contract** than §3.6 above specifies, and
+**no ESP32 firmware in this repo implements either version yet** (see the gap note at the end of
+this section).
+
+**Real flow, step by step:**
+1. **Identify** — farmer scans a QR code on the collar or types its ID by hand. Every real
+   collar's BLE advertised name must start with `GODHAN_` (e.g. `GODHAN_A3F2`) — different from
+   this doc's `CattleCollar-{MAC}` convention above.
+2. **Scan** — phone does a BLE scan filtered to that exact device name.
+3. **Connect** — phone opens a GATT connection and discovers services.
+4. **WiFi entry** — farmer types SSID/password into the phone UI (nothing sent yet).
+5. **Cattle select** — farmer picks which animal in their herd this collar is for, from their
+   real herd list (fetched from `cattle-service`).
+6. **Configure / provision** — the actual credential hand-off: three separate BLE **characteristic
+   writes**, 300ms apart (not one JSON blob like §3.6's `{wifi_ssid, wifi_password, device_id,
+   cattle_id, mqtt_broker, mqtt_port, interval}`):
+   - SSID → characteristic `00001235-0000-1000-8000-00805f9b34fb`
+   - password → characteristic `00001236-0000-1000-8000-00805f9b34fb`
+   - cattleId (cattle-service's own real `Cattle._id`, not a `COW-nnn`-style device-side id) →
+     characteristic `00001237-0000-1000-8000-00805f9b34fb`
+
+   All three live under service UUID `00001234-0000-1000-8000-00805f9b34fb`. The phone then polls
+   a fourth characteristic, `00001238-...` ("STATUS"), once a second for up to 20s, waiting for
+   the collar to write back the literal string `"OK"` — the collar's own signal that it took the
+   credentials and successfully joined that WiFi network. No `mqtt_broker`/`mqtt_port`/`interval`
+   are negotiated over BLE in this real implementation — those would need to be firmware-side
+   defaults/config, not something the phone sends.
+7. **Done** — mobile side's job ends the moment STATUS reads `"OK"`. Everything after that (the
+   collar actually joining WiFi, then calling home) is firmware, not app code.
+
+**What happens after BLE, and the loop that used to be broken**: once on WiFi, the collar calls
+`godhan-cattle-iot`'s `POST /api/devices/register` with its own deviceId + the cattleId it was
+just told over BLE. Until 2026-07-20 that only ever updated `godhan-cattle-iot`'s own `Device`
+record — nothing propagated to `cattle-service`'s `Cattle.deviceId`, the field every farmer-facing
+IoT UI actually reads, so a "successful" pairing never showed up anywhere in the app. Fixed in
+`docs/DEVELOPMENT_PLAN.md` §3.40: that same registration call now also links `cattle-service`'s
+side for real.
+
+**Gap worth flagging clearly**: `godhan iot docs/esp_32_firmware_skeleton.cpp` (this repo's only
+ESP32 firmware skeleton) has **zero BLE code** — no service/characteristic UUIDs, no `GODHAN_`
+advertising name, nothing matching either this section or §3.6 above. The mobile app's BLE
+pairing flow is real and working code, verified as far as the phone-side GATT writes go, but
+there is currently no firmware in this repository for it to actually talk to — real hardware
+pairing can't be end-to-end tested until firmware work implements a matching BLE peripheral
+(ideally matching this section's real, already-shipped mobile contract, since redoing the mobile
+side to match §3.6's original JSON-blob design would be the more disruptive direction at this
+point).
+
 ### 3.7 Offline Storage (SPIFFS)
 
 - If WiFi/MQTT unavailable at send time → payload written to `/offline.log` on SPIFFS

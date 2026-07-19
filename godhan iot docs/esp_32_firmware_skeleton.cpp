@@ -27,6 +27,18 @@ const char* password = "YOUR_WIFI_PASSWORD";
 const char* mqtt_server = "192.168.1.100";  // local broker IP or cloud broker
 const int   mqtt_port = 1883;
 
+// One constant edited per physical device at flash time (or read from NVS/a provisioning
+// step, for a fleet) — everything below derives from it, rather than "cow01" hardcoded in
+// three separate places. Topics follow godhan-cattle-iot's existing cattle/<purpose>/<deviceId>
+// convention (already used for cattle/cmd/<deviceId> and cattle/ota/status/<deviceId>), so the
+// backend's MQTT bridge (src/services/mqtt.service.js) can route by topic without a payload
+// device_id lookup coming first. This device has no RTC/NTP, so readings carry no timestamp —
+// the backend defaults to receipt time, meaning offline-buffered readings replayed on
+// reconnect (see uploadOffline() below) land with the replay time, not when they happened.
+const char* DEVICE_ID = "cow01";
+const String TOPIC_DATA   = "cattle/data/"   + String(DEVICE_ID);
+const String TOPIC_ALERTS = "cattle/alerts/" + String(DEVICE_ID);
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -121,7 +133,7 @@ void setupWiFi() {
 void reconnectMQTT() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect("CowDevice01")) {
+    if (client.connect(DEVICE_ID)) {
       Serial.println("connected");
     } else {
       Serial.print("failed, rc=");
@@ -150,7 +162,7 @@ void uploadOffline() {
     String line = file.readStringUntil('\n');
     line.trim();
     if (line.length() > 0) {
-      client.publish("farm/cow01/data", line.c_str());
+      client.publish(TOPIC_DATA.c_str(), line.c_str());
       delay(200);
     }
   }
@@ -162,18 +174,18 @@ void uploadOffline() {
 void publishData(float accX, float accY, float accZ, float temp, float batteryV, int rumination) {
   char payload[300];
   snprintf(payload, sizeof(payload),
-           "{\"device_id\":\"cow01\",\"accX\":%.2f,\"accY\":%.2f,\"accZ\":%.2f,\"temp\":%.2f,\"battery\":%.2f,\"rumination_events\":%d}",
-           accX, accY, accZ, temp, batteryV, rumination);
+           "{\"device_id\":\"%s\",\"accX\":%.2f,\"accY\":%.2f,\"accZ\":%.2f,\"temp\":%.2f,\"battery\":%.2f,\"rumination_events\":%d}",
+           DEVICE_ID, accX, accY, accZ, temp, batteryV, rumination);
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) reconnectMQTT();
     client.loop();
-    client.publish("farm/cow01/data", payload);
+    client.publish(TOPIC_DATA.c_str(), payload);
     Serial.println("Published: ");
     Serial.println(payload);
 
     if (batteryV < LOW_BATTERY_THRESHOLD) {
-      client.publish("farm/cow01/alerts", "{\"alert\":\"LOW_BATTERY\"}");
+      client.publish(TOPIC_ALERTS.c_str(), "{\"alert\":\"LOW_BATTERY\"}");
       Serial.println("Low battery alert sent!");
     }
 

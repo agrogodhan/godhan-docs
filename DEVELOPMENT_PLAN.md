@@ -1,7 +1,7 @@
 # Godhan Platform — Development Plan
 
-**Compiled:** 2026-07-16 · **Updated:** 2026-07-17 (auth flow wired end-to-end; two platform-wide bugs fixed; cattle-service now supports the full Cattle Detail screen)
-**Sources:** `Godhan master app promt.md` (vision spec, workspace root), `godhan-services/newCattle/PLATFORM_DESIGN.md` + `SERVICE_ANALYSIS_REPORT.md` (2026-05-07 backend audit), live inspection of `godhan-app/` and `godhan-services/` source on 2026-07-16.
+**Compiled:** 2026-07-16 · **Updated:** 2026-07-20 (offline-first persistence, all 9/9 cattle-detail tabs, and the IoT device↔cattle assignment bug fixed — see §3.38–§3.40; also, every service's previously-uncommitted work, including this session's, is now committed and pushed, see "still open" item 8)
+**Sources:** `Godhan master app promt.md` (vision spec, workspace root), `docs/PLATFORM_DESIGN.md` + `docs/SERVICE_ANALYSIS_REPORT.md` (2026-05-07 backend audit — now under `docs/`, not `godhan-services/newCattle/`, which no longer exists as a directory), live inspection of `godhan-app/` and `godhan-services/` source on 2026-07-16/17/19/20. `docs/PREDICTION_PIPELINE_END_TO_END.md` is the detailed companion to §3.33 below — read that for the full IoT/prediction writeup, this file only summarizes it.
 
 This document exists to answer one question at any point in the project: **what's actually built, what's broken, and what's next.** It supersedes nothing — the master prompt stays the source of truth for *vision*; this file tracks *status and sequencing*.
 
@@ -9,9 +9,9 @@ This document exists to answer one question at any point in the project: **what'
 
 ## 1. Where we are, in one paragraph
 
-The KMP mobile app (`godhan-app/`) has real, working-depth code for auth, cattle/herd management, cattle+dairy marketplace browsing, reports, referrals, notifications, and profile — roughly 119 Kotlin files, ~7,600 lines across `commonMain`. The backend (`godhan-services/`) has 8 Node.js microservices in varying states. **As of 2026-07-16 all 6 previously-crashing services now boot and were verified live against a local MongoDB** (see §3 for what changed); `user-service` was already fine and continues to work as before. No Admin (Angular) app and no Delivery app exist yet — both are full sections of the spec with zero code. IoT (the ESP32 collar pipeline that much of the platform's differentiation depends on) exists only as docs/firmware sketches, not as a running ingestion path.
+The KMP mobile app (`godhan-app/`) has real, working-depth code for auth, cattle/herd management (all 9 spec'd detail tabs as of 2026-07-20, §3.39), cattle+dairy marketplace browsing, reports, referrals, notifications, offline-tolerant caching (§3.38), and profile. The backend (`godhan-services/`) has 9 Node.js microservices plus one Python ML service in varying states. **As of 2026-07-16 all 6 previously-crashing services now boot and were verified live against a local MongoDB** (see §3 for what changed); `user-service` was already fine and continues to work as before. No Admin (Angular) app and no Delivery app exist yet — both are full sections of the spec with zero code. **IoT (the ESP32 collar pipeline that much of the platform's differentiation depends on) is now a real, running, end-to-end pipeline** (§3.33, 2026-07-19) — device → MQTT ingestion → ML prediction → farmer-facing API → mobile UI — and, as of 2026-07-20, pairing a collar to a specific animal now actually takes effect end-to-end, which it silently never did before (§3.40).
 
-Net: **Phase 1 (Daily Utility MVP) is ~60–70% built on the client, and the backend now actually starts** — remaining backend work is feature completion (see §4), not plumbing.
+Net: **Phase 1 (Daily Utility MVP) is close to done on the client** — the one remaining dead stub is farm-wide Expense & Income tracking (still open item 17); everything else in the Phase 1 table is built. Remaining backend work is feature completion (see §4), not plumbing. **Phase 3's IoT foundation, previously its single biggest gap, is now built and actually wired end-to-end** — what remains there is UI polish (a live-vitals dashboard, a dedicated reassign screen), not core plumbing or silent bugs.
 
 ---
 
@@ -52,7 +52,9 @@ Single initial commit (2026-05-08); substantial **uncommitted work in progress**
 | `notification-service` | 3006 | **ESM** (converted) | ✅ Boots, connects to Mongo, auth middleware verified live. Still DB-store only — FCM/SMS dispatch not wired (§3.2) |
 | `report-service` | 3007 | **ESM** (converted) | ✅ Boots, connects to Mongo, auth middleware verified live. Missing `Report` model created; double-`src/` require bug and wrong service-URL ports in `.env` fixed |
 | `helper-service` | 3005 | **ESM** (converted) | ✅ Boots, connects to Mongo, auth middleware verified live |
-| `newCattle/` | — | — | Not a service — contains analysis/design docs only (see §2.3) |
+| `godhan-cattle-iot` | 3008 | ESM | ✅ Device/sensor ingestion + OTA, real HTTP *and* MQTT ingestion (§3.33) — added/verified 2026-07-19, not part of the original 6-service ESM/CJS fix pass since it didn't exist as a real service at that time |
+| `godhan-iot-prediction` | — (Python, no HTTP server) | — | ✅ Heat/calving/milk-yield ML pipeline — one-shot job self-scheduled via `src/scheduler.py` (§3.33), no systemd/cron needed |
+| `newCattle/` | — | — | No longer exists as a directory — its docs live under `docs/` now, and the IoT service it only ever *designed* is `godhan-cattle-iot` above, now real |
 
 **Root blocker for the entire backend — fixed 2026-07-16:** `godhan-core` publishes ESM-only (`export default {...}`), and all 6 services below were written as CommonJS (`require("@godhan/core")`), which throws at startup. Fixed by converting `cattle-service`, `marketplace-service`, `notification-service`, `wallet-service`, `helper-service`, and `report-service` to ESM (`"type": "module"`, `import`/`export`) to match `godhan-core` and `user-service` — `godhan-core` itself was left untouched. All 6 were then installed (`@godhan/core` now resolves via `"file:../godhan-core"` instead of an unpublished registry version) and **boot-verified live** against a local MongoDB instance, including a real HTTP round-trip confirming `core.middleware.createAuth` correctly rejects unauthenticated requests on each service. Full list of what was fixed along the way is in §3.1.
 
@@ -70,8 +72,10 @@ These already exist in the repo and this plan builds on them rather than duplica
 
 - **Delivery Android app** (spec §3) — no directory exists.
 - **Admin Angular app** (spec §4) — no directory exists.
-- **IoT telemetry service / MQTT ingestion** (spec §7) — no MQTT consumer, no `sensor_readings`/`devices`/`alerts` collections in any service.
 - **milk-rate-service**, **labor-service** as named in the spec's target architecture (§5) — helper-service and cattle-service partially cover this ground today but not under those names/boundaries.
+- **Push notification dispatch** — real, not just in-app (§3.30 item 1, still open).
+
+**No longer belongs in this list (2026-07-19): IoT telemetry/MQTT ingestion** — this was the single largest item here as of 2026-07-17 ("entirely unbuilt... largest single chunk of remaining backend work," per the old §4 Phase 3 text). It's now real: `godhan-cattle-iot` ingests sensor data over MQTT and REST, `godhan-iot-prediction` computes heat/calving/milk-yield predictions on a self-managed 6h schedule, `cattle-service` surfaces predictions and alerts to the farmer via API, and `godhan-app`'s cattle detail screen renders them. See §3.33.
 
 ---
 
@@ -417,19 +421,282 @@ Not build-verified (no Gradle available) — brace/paren balance across all 6 to
 
 Not build-verified (no Gradle/JVM in this environment) — checked instead via: brace/paren balance across all 21 touched/new Kotlin files, a cross-reference confirming every `Res.string.xxx` used in code has a matching `<string name="...">` entry in all four `strings.xml` files (and vice versa — no orphaned keys), XML well-formedness (escaped ampersands/apostrophes, matched open/close tags) on all four resource files, and the `LocalAppLocale`/`ComposeEnvironment` override pattern cross-checked against JetBrains' own documented example rather than recalled from memory alone.
 
+### 3.33 IoT + prediction pipeline built end-to-end (2026-07-19)
+
+The single largest gap this whole plan tracked — "IoT collar ingestion pipeline... entirely unbuilt" (old §4 Phase 3) — is now real, top to bottom: device → ingestion → prediction → storage → farmer-facing API → mobile UI, plus alerting. Full detail lives in `docs/PREDICTION_PIPELINE_END_TO_END.md` (written and updated incrementally as each gap closed); this is the summary for this file.
+
+**Two services this plan's service table never previously listed, now added to §2.2**: `godhan-cattle-iot` (Node — device/sensor/OTA ingestion) and `godhan-iot-prediction` (Python — heat/calving/milk-yield ML, no HTTP server, invoked as a job). Both predate this session but were effectively dormant/half-wired; neither was part of the original 6-service ESM/CJS fix in §3.1.
+
+**Database consolidated** — `godhan-cattle-iot`/`godhan-iot-prediction` previously used a separate `godhan_cattle_iot` database from `cattle-service`'s `godhan_cattle`, needing a cross-database read for anything to join the two. Now all three share one physical database (`godhan_cattle`; one DB, many collections — simpler for a project this size, at the user's direction). Caught and fixed a real collection-name collision this would have caused: `godhan-cattle-iot`'s own `Cattle` model defaulted to the same `cattles` collection cattle-service's real `Cattle` model uses — renamed to `iot_cattle`.
+
+**`godhan-iot-prediction` (the ML pipeline) — three real, previously-shipped bugs fixed**: (1) heat detection trained a model every run but never called `.predict()` or saved anything — `heat_predictions` was always empty regardless of how many times the job ran; (2) calving prediction read insemination dates from `godhan-cattle-iot`'s own stale, duplicate `cattle` collection instead of `cattle-service`'s authoritative, already-computed `expectedCalvingDate` (species-aware gestation, matching §3.25's ±3-day-window work); (3) `create_alert` existed but nothing ever called it. All three fixed and verified against real predict/train output, not mocks — including working around a real methodology snag (the RandomForest's chronological train/test split needs positive examples on both sides, and the calving heuristic averages over up to 288 rows, both of which make naive synthetic test data misleading).
+
+**Scheduling** — `deployment/godhan-iot-prediction.service` + `.timer` existed but nothing had ever installed or enabled either; the job only ran if someone manually typed the command. `cattle_prediction.py`'s body is now a plain `run()` function; a new `src/scheduler.py` calls it immediately, then every `SCHEDULE_INTERVAL_HOURS` (default 6h) via the `schedule` package — no systemd/root/Linux host needed, `python -m src.scheduler` just works anywhere (including this sandbox — verified live: seeded real data, watched it fire immediately, then fire again on schedule and save real predictions both times). `docker-compose.yml`'s `prediction` service now runs this with `restart: always`; the old service+timer systemd pair was collapsed into one always-running `Type=simple` unit wrapping the same command.
+
+**Device → ingestion** — the ESP32 collar firmware talks MQTT, `godhan-cattle-iot`'s `POST /api/data` is plain REST, nothing bridged them. `godhan-cattle-iot` already ran an MQTT client for OTA (`mqtt.service.js`); extended it (rather than a second parallel connection) to also subscribe to `cattle/data/<deviceId>` and `cattle/alerts/<deviceId>`, resolving `deviceId → cattleId` via the paired `Device` record and writing through the same paths the REST routes use. Updated the firmware skeleton doc to match (parameterized `DEVICE_ID`, correct topic convention — it previously hardcoded `"cow01"` in four places and published to a flat, non-parameterized topic). Verified live against a real MQTT broker: correct field mapping, `Device.battery` updates, and clean drops (not crashes) for unpaired/unregistered devices.
+
+**Alerts wired to real predictions** — `create_alert` now fires once per cattle per episode (not once per flagged reading — a single episode can span dozens) for `HEAT_DETECTED`/`CALVING_IMMINENT`, with a 24h dedup window so a multi-run episode doesn't spam. Surfaced via a new `GET /cattle/:id/alerts` on `cattle-service` (same JWT+ownership pattern as every other route, reading the same `alerts` collection both the MQTT bridge and the ML pipeline write to) and a new **Alerts** card at the top of the mobile cattle detail screen's Overview tab, above the prediction cards since alerts are time-sensitive.
+
+**Farmer-facing API + mobile** — `cattle-service` also exposes `GET /cattle/:id/predictions` (resolves `deviceId` → the IoT pipeline's collections, returns the latest heat/calving prediction and only the *reconciled* milk forecast — the still-pending one stays hidden by design until the farmer logs their own number). Mobile renders Heat Detection and Milk Yield Forecast cards, plus folds an imminent-calving warning into the existing Calving Prediction card.
+
+**Verified live throughout**, not just read — a live MongoDB, a live `cattle-service` instance, a live `godhan-cattle-iot` instance, an in-process test MQTT broker, and the real Python scheduler were all actually run and exercised with seeded data at each step, including negative cases (unpaired device, wrong farmer's token, an unmatched device). The one recurring caveat from every other mobile change in this plan applies here too: the new Kotlin (DTOs, ViewModel state, three new UI cards) was reviewed by hand — brace/paren balance, import sweep — never actually compiled, no Gradle in this environment.
+
+**Known gaps deliberately left open, not silently skipped** — see the updated "Still open" list below (items 12-14).
+
+### 3.34 Real FCM push dispatch wired (2026-07-19)
+
+Closes "still open" item 1, below (see the updated item 1 for what's genuinely still open around this).
+
+**The mobile side was already fully built and had been for a while, unnoticed** — `GodhanFcmService.kt` (a real `FirebaseMessagingService`), proactive token registration on launch, the manifest service declaration, and the `firebase-messaging` Gradle dependency were all already in place, correctly calling the real `/register-token` endpoint with matching field names. Confirmed by research before writing anything server-side, to avoid duplicating work that already existed. The entire gap was server-side: `DeviceToken` registration (§3.13) worked, but nothing ever read from it to actually call the FCM Admin SDK.
+
+**No Firebase Admin credentials exist anywhere in this repo** (checked: only client-side `google-services.json` and the unrelated Google Sign-In OAuth web client ID exist) — a service-account key must be generated fresh from Firebase Console (project `godhan-98e6f`) and is not something obtainable from within this environment. Built the complete, correct dispatch mechanism using the same dev-mode-fallback convention already established for Twilio/S3/SMTP (`if (!client) { log a warning; return a mock result; }`) so it's fully functional and testable right now, and becomes real the moment credentials are dropped in — nothing else changes.
+
+**`godhan-core`**: new `core.utils.push.sendPush({ messaging, tokens, title, body, data })` and `core.utils.notifier.notifyPush(...)` (the non-throwing wrapper, matching `notifyEmail`/`notifySMS`). Neither imports `firebase-admin` itself — same "caller creates and passes the client" pattern as `s3Client`/`twilioClient`, so core stays credential-free and SDK-dependency-free for this too.
+
+**`notification-service`**: new `src/config/firebase.js` (`getMessaging()`, lazily constructs `admin.messaging()` from three new `.env` keys — `FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY`, all empty placeholders today — or returns `null` if unset). `createNotification` now looks up the target farmer's `DeviceToken`s and calls `notifyPush` after every save, for every channel (not just `channel: "email"`) — an in-app notification should reach a closed app too, the same way the breeding reminders/heat alerts that create most of these were always meant to. Best-effort: a push failure never fails notification creation (`notifyPush` already catches/logs internally), and a farmer with zero registered devices is the common case, not an error — short-circuited before ever calling `notifyPush`.
+
+**Verified live**: booted a real `notification-service` instance, registered a device token, created a notification for that farmer — confirmed the real dispatch path ran (`[core.push] no client — mock sendPush ... tokens:1`, correctly picking up the one registered token) rather than silently skipping. Created a second notification for a farmer with **no** registered device — confirmed it's saved correctly and the push path is skipped entirely with no attempt/log at all, not a wasted/erroring call. `node --check` on all five touched/new backend files (`godhan-core`'s `push.js`/`notifier.js`/`index.js`, `notification-service`'s `firebase.js`/`notification.service.js`).
+
+**Real credentials wired and verified live (2026-07-19).** The user generated the service-account key from Firebase Console themselves (the one step that genuinely required their own Google auth) and provided it; the three `FIREBASE_*` keys in `notification-service/.env` are now real, not placeholders — confirmed `.env`/`.env.*` are gitignored in that service's own repo before touching anything, so the credential can't accidentally get committed. Verified with a real (not mocked) call into the Firebase Admin SDK: `getMessaging()` now returns a real client rather than `null`, and a direct `messaging.send()` dry-run against a deliberately fake device token failed with `messaging/invalid-argument` — a clean FCM-API-level rejection of the token itself, not an authentication/credential error (a bad private key or wrong project would fail earlier, at the OAuth2 token exchange, with a completely different error shape). No real device token exists to test actual delivery to a phone, but the credential chain — private key → signed JWT → Google OAuth2 → authorized FCM API call — is now confirmed working end to end. The mock branch and the real branch remain the same code path from §3.34; nothing else changed.
+
+### 3.35 Every service consolidated onto one shared database (2026-07-19)
+
+At the user's direction, after they noticed "many databases (per-service)" in Mongo and asked whether the platform was actually sharing one — it wasn't; only the cattle/IoT cluster had been consolidated (§3.33). Extended the same reasoning platform-wide: `helper-service`, `marketplace-service`, `notification-service`, `report-service`, `user-service`, `wallet-service` each had their own separate database (`godhan_helper`, `godhan_marketplace`, etc.) in addition to the cattle cluster's own. All 9 services now share **one** physical MongoDB database, renamed from `godhan_cattle` to plain `godhan` (no longer cattle-specific, so the old name would have been actively misleading).
+
+**Collision audit before touching anything**: read every `mongoose.model(...)` registration across all 9 services (20+ models) and diffed their resulting collection names. Exactly one real collision, the same class of bug as the `Cattle`/`iot_cattle` rename in §3.33: **`user-service` and `wallet-service` both have a `Transaction` model**, both defaulting to `"transactions"` — but genuinely different data (`user-service`'s is unused, unwired payment-gateway/membership-upgrade initiation tracking with fields like `txnId`/`status: initiated|success|failed`; `wallet-service`'s is the real, live credit/debit ledger with `coinAmount`). Renamed `user-service`'s to an explicit `payment_gateway_transactions` collection before merging — it had zero existing documents (confirmed: that model is part of the still-unwired `walletWebhookRoutes` code noted in §3.1), so this was a pure prevention, not a data-recovery. Everything else, including a `Config` key-value store defined once inside `godhan-core` itself and used by both `wallet-service` and `user-service` against their own separate `configs` collections today, merges cleanly and correctly into one shared collection — checked the actual keys in use (`CASHBACK_PERCENT`, `MAX_COIN_REDEMPTION_PERCENT`, `REFERRAL_REWARD_COINS`) for name overlap; none.
+
+**Migration, not a fresh start**: wrote a one-off script that copied every document from each of the 7 old databases into the new `godhan` database, collection-by-collection, verified by comparing exact document counts before/after (all matched: 2 cattle, 1 helper, 1 notification, 6 users, 11 refresh tokens, 12 email verifications, 1 OTP, 2 wallet transactions, 1 wallet — everything else was already empty). Indexes weren't migrated explicitly — Mongoose's `autoIndex` recreates them from each model's schema the moment a service boots against the new database, so this wasn't needed.
+
+**Verified live, not just counted** — booted all 9 services against the new `godhan` database (correcting entry-point paths along the way: `user-service`/`notification-service`/`report-service`/`helper-service` run from `src/server.js`, the others from a root `server.js`) and, for every service that actually had migrated data, hit a real authenticated endpoint and confirmed the real values came back correctly: `wallet-service` `GET /wallet` → balance 510 (matching the exact figure from §3.21's original test); `helper-service` `GET /helpers` → "Ramesh"; `notification-service` `GET /notifications` → the migrated test notification; `user-service` `GET /api/v1/users/:id` → the migrated farmer's real profile. `cattle-service` initially appeared to return an empty herd for the migrated `farmerId` — traced to the two migrated cattle records predating the `status` field added in §3.24 (Mongoose defaults don't retroactively apply to documents that already existed in the database before the field was added to the schema), confirmed by re-querying with `includeArchived=true` and getting both records back correctly — a pre-existing data quirk from an earlier session's manual testing, not a bug in this migration. `marketplace-service`/`report-service` had no data to migrate (both were already empty), so only boot + connection were verified for those two.
+
+**Old databases dropped** only after every service above was confirmed working against the new one — `godhan_cattle`, `godhan_helper`, `godhan_marketplace`, `godhan_notifications`, `godhan_report`, `godhan_user`, `godhan_wallet` are all gone; `mongodb://localhost:27017` now has exactly one application database (`godhan`) plus MongoDB's own `admin`/`config`/`local`.
+
+Also updated: `godhan-iot-prediction/configs/.env`'s `DB_NAME`/`CATTLE_DB_NAME` (was `godhan_cattle`, now `godhan`), and `docs/PREDICTION_PIPELINE_END_TO_END.md`'s references to the old name.
+
+### 3.36 IoT alerts wired to notification-service (2026-07-19)
+
+Closes the remaining half of "still open" item 1 below (§3.34 wired FCM dispatch itself; this wires the one remaining alert *producer* that never called into it). Both places that write to the shared `alerts` collection now also push a real farmer notification through the same `notification-service` endpoint cattle-service's own heat/reminder events already use — a farmer sees device-sourced, prediction-sourced, and manually-logged events in one place, not two separate silent-vs-notified tiers.
+
+**Two producers, two languages, same resolution chain**: neither `godhan-cattle-iot`'s `alert.service.js::createAlert` (device-side alerts — currently just `LOW_BATTERY`) nor `godhan-iot-prediction`'s `alerts.py::create_alert` (prediction-triggered — `HEAT_DETECTED`/`CALVING_IMMINENT`, wired in an earlier session) receive a `farmerId` directly — only the IoT-side `cattleId`. Both now resolve it the same way: `cattleId → deviceId` (via `godhan-cattle-iot`'s `Device.cattleId` on the Node side, via the most recent `sensor_data` reading on the Python side — pre-existing conventions, not new), then `deviceId → farmerId` via cattle-service's own `Cattle.deviceId`, a plain cross-collection read now that every service shares one database (§3.35) — no HTTP call needed for that half. Wired into `createAlert` itself on both sides (not the individual call sites) so it's automatic for every current and future alert type, matching the same "one dispatch choke point" principle §3.34 used for push.
+
+**Getting a token into notification-service's protected endpoint from two unattended background processes**: `godhan-cattle-iot` reuses `core.http.apiClient` + a short-lived internally-minted JWT for the target farmer's own id — identical pattern to `cattle-service`'s `notifyFarmer`/`reminder.cron.js`. `godhan-iot-prediction` (Python, no `@godhan/core`) does the same thing by hand: `PyJWT` (new dependency) signs `{id: farmer_id}` with the shared `JWT_SECRET`, `requests` (new dependency) POSTs it — notification-service's auth middleware doesn't care what language signed the token, only that it verifies against the shared secret. Both are best-effort/non-fatal, same convention as everything else in this codebase that shouldn't be allowed to break its caller (a verification-email failure, a push-dispatch failure): a notification hiccup never fails alert creation or the prediction run computing the actual signal.
+
+**A real design smell caught and fixed while wiring the Python side, not pre-existing**: the natural place to put a shared `get_cattle_by_device` helper was already `milk.py` (where it originally lived), but importing it from `alerts.py` would have dragged `milk.py`'s full `sklearn`/`joblib` model-training import chain into alert dispatch for what's a one-line Mongo lookup with zero relationship to milk-yield prediction. Moved `get_cattle_by_device` to `utils.py` (already a `pandas`-level dependency everywhere in this codebase, but not `sklearn`/`joblib`) and repointed `milk.py`/`cattle_prediction.py`'s imports to the new location — `alerts.py` now only pulls in what it actually needs.
+
+**Verified live, both languages, both real HTTP round-trips**: seeded a paired device+cattle+farmer for each side, then exercised the *real* code path, not a mock — `godhan-cattle-iot`: a real `POST /api/alerts` HTTP call through the full stack; `godhan-iot-prediction`: a direct call to the real `create_alert(...)` function (not the full ML pipeline — getting the model to genuinely flag a prediction hit the same chronological-train/test-split and window-averaging friction noted in §3.33, so this exercises the alert/notify wiring itself with an engineered input, exactly like that section's own heat/calving verification did). Both confirmed a real `Notification` document appeared for the correct, resolved `farmerId` via `GET /notifications`, with the right title/message (`"Collar battery low"` / `"Heat detected"`).
+
+### 3.37 S3 file uploads wired for real (2026-07-19, in progress — code done, bucket not yet created)
+
+Same "flip mock to real" request as FCM (§3.34), but research turned up more than a missing
+credential: **no service was actually one env-var away from working.**
+
+- **`cattle-service` and `helper-service`** never constructed an `S3Client` anywhere — no
+  `@aws-sdk/client-s3` dependency, no config file, no `AWS_*` env vars. 100% mock, unconditionally,
+  regardless of `.env`.
+- **`user-service`** had a `config/s3.js` and passed a client into every `core.utils.s3.*` call —
+  but built it with **AWS SDK v2** (`aws-sdk` package), while `core.utils.s3` requires a v3
+  `S3Client` (`.send()`, and v3-only `getSignedUrl`). Confirmed live in a Node REPL: `new
+  AWS.S3().send` is `undefined`. Compounding it, `user-service/.env` had a **duplicated `AWS_*`
+  block** whose second copy used truthy placeholder values (`AWS_ACCESS_KEY_ID=xxx` etc.) —
+  meaning the mock-fallback guard (`if (!s3Client)`) never fired, and profile-picture upload was
+  **actively throwing in production right now**, not gracefully mocking. Fixed: rewrote
+  `config/s3.js` to construct a real v3 `S3Client` (mirroring
+  `notification-service/src/config/firebase.js`'s lazy-init pattern), swapped the `aws-sdk`
+  dependency for `@aws-sdk/client-s3`, collapsed the duplicated env block down to one with
+  genuinely empty placeholders. `upload.service.js`'s own architecture (a `Media` model storing
+  `s3Key` + a 24h-TTL presigned `url`, regenerated on every read via `refreshProfileUrl`) was
+  already correct — untouched.
+- **A real design bug in the mock-era code**, caught before it could bite in production:
+  `cattle-service`/`helper-service` persisted whatever `getPresignedUrlView` returned **directly
+  into MongoDB** (`Cattle.images`, `Helper.contractDocs`, both `[String]`). A real presigned URL
+  expires (default 300s) — stored forever and served back on every later read, cattle photos
+  would 403 minutes after upload. Decided with the user: upload with public bucket-policy access
+  instead of presigning, and store the **permanent** plain URL — zero schema/mobile changes,
+  matches how most apps handle non-sensitive user photos, avoids ever needing to regenerate
+  anything. Built `config/s3.js` (same lazy-init pattern) and wired it into `uploadCattleImage`/
+  `uploadHelperContract`, storing `https://${bucket}.s3.${region}.amazonaws.com/${key}` directly.
+- **A second bug caught before shipping, not just theorized**: the plan's first draft used
+  `ACL: "public-read"` on the `PutObject` call. Modern S3 buckets default to **"Bucket owner
+  enforced" object ownership**, which disables ACLs entirely — passing an `ACL` parameter to a
+  bucket like that *throws*, it doesn't silently no-op. Removed it: public access comes purely
+  from a bucket policy scoped to the `cattle/*`/`helper/*` prefixes (below), which doesn't need
+  ACLs enabled at all and is the AWS-recommended approach today anyway.
+- **Also fixed while touching `cattle-service`'s upload path, not originally in scope**:
+  `deleteCattleImage` removed the URL from `Cattle.images` but never actually deleted the S3
+  object — an orphaned-file leak on every delete. Now parses the S3 key back out of the stored
+  permanent URL's pathname (reliable — no query-string signature to fight, unlike a presigned
+  URL) and calls `deleteFromS3`, best-effort (a bucket-cleanup hiccup doesn't turn an otherwise-
+  successful removal into an error response).
+- **One shared bucket** (`godhan-assets`, matching `user-service`'s pre-existing default) across
+  all three services, each under its own key prefix (`cattle/*`, `helper/*`, `users/*`) — added
+  the same four `AWS_*` env vars (empty placeholders) to `cattle-service`/`helper-service`'s
+  `.env`, which previously had none at all.
+
+**Verified live in mock mode, all three services**: booted each fresh, confirmed the expected
+`[s3] AWS credentials not set — ... mocked` warning (and, for `user-service`, confirmed the
+*absence* of the old throw — the duplicated-env-block fix alone was necessary and sufficient to
+stop it constructing a garbage-credentialed client). Real HTTP round-trips, not just log-reading:
+`cattle-service` — multipart image upload → `Cattle.images` correctly gets the mock URL → delete
+correctly removes it and cleanly skips the (nonexistent, since mocked) S3 object deletion.
+`helper-service` — multipart contract upload → `Helper.contractDocs` correctly gets the mock URL.
+`user-service` — multipart profile-picture upload against a real migrated user record →
+succeeds and returns a real `Media` document (previously would have thrown `TypeError:
+s3Client.send is not a function`). Test data cleaned up after each.
+
+**Not achievable from this environment, same as Firebase Console for FCM**: I have no AWS CLI or
+credentials here, so I cannot create the actual bucket, IAM user, or bucket policy — that's on
+the user. Once they do:
+
+1. Create an S3 bucket named `godhan-assets` (or their preferred name) in region `ap-south-1`
+   (matching `user-service`'s existing default — change all three `.env`s together if a
+   different region is used).
+2. Create an IAM user with an access key and this policy (grants the backend services
+   upload/read/delete on the whole bucket — `users/*` still stays effectively private since
+   nothing serves those objects except through `user-service`'s own presigned-URL flow):
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Sid": "GodhanServiceS3Access",
+       "Effect": "Allow",
+       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+       "Resource": "arn:aws:s3:::godhan-assets/*"
+     }]
+   }
+   ```
+3. Under the bucket's Permissions tab, uncheck "Block all public access" for bucket policies
+   specifically (leave ACL-related sub-options blocked — not needed, see above), then add this
+   bucket policy — scoped only to `cattle/*`/`helper/*`, `users/*` is deliberately excluded so
+   profile pictures stay private:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Sid": "PublicReadCattleAndHelperAssets",
+       "Effect": "Allow",
+       "Principal": "*",
+       "Action": "s3:GetObject",
+       "Resource": [
+         "arn:aws:s3:::godhan-assets/cattle/*",
+         "arn:aws:s3:::godhan-assets/helper/*"
+       ]
+     }]
+   }
+   ```
+4. Provide the access key ID/secret (and bucket/region if different from the defaults above) to
+   drop into `cattle-service`/`helper-service`/`user-service`'s `.env` files — same "paste it to
+   me" flow used for the Firebase service-account key.
+
+### 3.38 Offline-first persistence built (2026-07-20)
+
+Closes the "Offline-first persistence" item on `docs/GODHAN_APP_FEATURE_STATUS.md`'s ❌ Pending
+list — was sitting complete-but-uncommitted in the `godhan-app` working tree at the start of this
+session, committed as part of it. SQLDelight-backed local cache (`CattleLocalDataSource`,
+`GodhanDatabase`) for the herd list and cattle detail — read-through: network first (so an online
+farmer always sees current data), falls back to whatever's cached on failure. A new
+`ConnectivityObserver` (Android real via `ConnectivityManager`, iOS stubbed always-online, same
+convention as this codebase's other not-yet-implemented iOS platform code) drives an "offline —
+showing saved data" banner on both the herd list and cattle detail screens.
+`androidApp`'s source set also migrated from the legacy `src/main` to the standard KMP
+`src/androidMain` layout as part of the same commit. Not build-verified — no JDK 17 in this
+environment (SQLDelight requires 17+); hand-reviewed (brace/paren balance, import sweep).
+
+### 3.39 Cattle detail: remaining 5 tabs built — Medical, IoT Health, Expenses, Documents, Timeline (2026-07-20)
+
+Closes the last gap on `docs/GODHAN_APP_FEATURE_STATUS.md`'s 🟡 Partial table ("Spec wants 9 tabs
+... 4 exist today") — all 9 now exist. Built Medical/Vaccination (append-only history, same
+convention as calving/insemination — `nextDueDate` feeds a new `vaccination_due` case in
+`getReminders()`), Expenses with an honestly-labeled **estimated** profit summary (revenue =
+logged milk × a flat configurable ₹/L rate, since no real milk-pricing engine or platform-wide
+expense system exists anywhere — same "estimated/honest zero" convention as report-service's
+`getMarketplaceReport`/home-dashboard fixes), Documents (same permanent-URL S3 pattern as cattle
+images, farmer-uploaded via the existing image-picker convention — no general file-picker exists
+in this platform), IoT Health (device battery/status/last-seen + a `Canvas`-based temperature
+sparkline reusing `ReportsScreen`'s existing charting approach, no new dependency), and a curated
+Timeline aggregating the herd's life events client-side (deliberately excludes milk logs/expenses
+— both already have their own tab and are too high-frequency to read as "events"). `TabRow` →
+`ScrollableTabRow` to fit 9 tabs. 56 new localized strings added across all 4 locale files,
+verified for exact key parity. `cattle-service` gained the matching backend: `medicalRecords`/
+`expenses`/`documents` subdocuments, `GET /:id/readings` (proxies `godhan-cattle-iot`'s
+`sensor_data` via the existing `resolveIotCattleId` cross-collection pattern), `POST/DELETE
+/:id/documents`, `GET /:id/expense-summary`. **Verified live**: registered a real test farmer,
+added a cattle, exercised every new endpoint (medical record, expense, expense-summary math,
+document upload/delete via real multipart, seeded `sensor_data`+`devices` docs and confirmed
+`/readings` resolves them), confirmed a different farmer's token is rejected on all of them, test
+data cleaned up. Not build-verified on the mobile side — no JDK 17; hand-reviewed (brace/paren
+balance, import-usage sweep against all 4 locale files, manual data-flow trace). Caught two real
+bugs during that review before they'd have hit a build: a `remember{}` block illegally calling
+`stringResource()` in the new Timeline tab, and a document-delete request that would have
+serialized under the wrong JSON field name (`imageUrl` instead of the backend's actual `url`).
+
+### 3.40 IoT device↔cattle assignment fixed — a previously-invisible, platform-wide bug (2026-07-20)
+
+The mobile pairing UI (`IotPairingScreen`/`IotPairingViewModel`, an 8-step BLE/WiFi flow including
+a real cattle picker) and the BLE layer (`AndroidBluetoothScanner`) were both already genuinely
+built, but **no code path anywhere in the platform ever actually set `cattle-service`'s
+`Cattle.deviceId` field** — the field every IoT-related UI (Overview tab's collar card, the new
+IoT Health tab, predictions, alerts, reminders) actually gates on. The real flow: mobile BLE-writes
+`{ssid, password, cattleId}` to the collar → collar connects to WiFi → collar calls
+`godhan-cattle-iot`'s `POST /api/devices/register`, which only ever upserted *that service's own*
+`Device{deviceId, cattleId}` document — a different collection in a different service.
+`cattle-service`'s side of the link was never written by anything, so a "successful" pairing never
+showed up anywhere in the app.
+
+Fixed by completing the loop at the actual moment of truth (the collar's own registration call,
+not the mobile app's BLE-success signal, which only proves the collar *received* credentials, not
+that it's really online): `cattle-service` gained `PUT /cattle/:id/device` (`setDeviceId` —
+ownership-checked, and if the device was already linked to a different animal in this farmer's
+herd, clears that old link first, enforcing a 1:1 device↔cattle invariant). `godhan-cattle-iot`'s
+`device.service.js::registerDevice()` now calls it (`linkCattleDevice`, best-effort/non-fatal),
+mirroring `alert.service.js::notifyFarmer`'s existing pattern exactly: raw-driver read into
+cattle-service's own `cattles` collection to resolve a farmerId (single shared DB per §3.35), mint
+a short-lived internally-minted JWT, call via `core.http.apiClient`. New `CATTLE_SERVICE_URL` env
+var added to `godhan-cattle-iot/.env`. Mobile gained an "Unpair Device" action (existing
+`ReconnectSheet`, behind a confirm dialog) — there was no unpair anywhere before this. Also fixed
+a related, separate staleness bug while in there: the cattle detail screen never reloaded after
+returning from a successful pairing (Voyager's `rememberScreenModel(tag=cattleId)` keeps the same
+ViewModel alive across navigation, so its one-time `init{}` load never re-fired) — added a
+reload-on-return.
+
+**Verified live, the full chain, not just in isolation**: direct link via the new endpoint with a
+real farmer token; a second farmer's token correctly rejected; simulated exactly what a real
+collar does (`POST /api/devices/register` with `{deviceId, cattleId}`) and confirmed via
+`GET /cattle/:id` on `cattle-service` that `deviceId` actually landed — this was the core,
+previously-broken link, so proving it end-to-end (not just that each side's own code runs) was the
+point; re-paired the same device to a second test cattle and confirmed the first one's link was
+correctly cleared; unpaired and confirmed it cleared. Test data cleaned up. Not build-verified on
+the mobile side (no JDK 17) — hand-reviewed.
+
+**Explicitly not built this pass, noted not silently skipped**: no dedicated "reassign to a
+different cattle" screen (achievable today via unpair + re-pair from the new animal's own Overview
+tab — the backend's auto-clear-old-link logic makes that safe without one); no blocking poll on
+the pairing screen waiting for the backend link to land before showing SUCCESS (the collar's own
+registration typically completes within a few seconds of connecting to WiFi, and the
+reload-on-return fix means the farmer sees it shortly after regardless); no "device already paired
+elsewhere" warning inside the pairing flow's cattle-picker step. iOS BLE remains a stub, unrelated
+to this fix — no buildable iOS target exists in this repo.
+
 ### 3.30 Still open
 
-1. **Wire real notification dispatch** (FCM at minimum) in `notification-service` — `DeviceToken` registration now works (§3.13) but nothing reads from it yet; in-app notifications work (including the new breeding reminders from §3.25), but nothing pushes to a device when the app isn't open.
+1. ~~Wire real notification dispatch (FCM at minimum) in `notification-service`~~ — done, §3.34. ~~`godhan-cattle-iot`'s IoT alert creation never calls `notification-service`~~ — done, §3.36. ~~Real Firebase Admin credentials~~ — done, §3.34 (2026-07-19 update): the user generated and provided the real service-account key, credential chain verified live. The one thing still genuinely untested: actual delivery to a real phone (no real device/FCM token exists in this environment to confirm with) — worth a quick real-device check once someone has the app installed with a registered token.
 2. **Add a `role` claim to the JWT payload** if a real admin-scoped endpoint (like a platform-wide marketplace report) is ever wanted — `core.middleware.role('admin')` exists and is used in `membership.routes.js`, but would reject every token today since `user-service`'s `generateAuthTokens` payload has never included `role`. Found while scoping §3.22's `getMarketplaceReport` fix, not fixed here since nothing currently depends on it.
 3. **Build advance-tracking for helpers** if wanted — the `advances` field exists on the schema but nothing anywhere reads or writes it, so `settleSalary`'s `advanceAdjusted` is always 0 (§3.23).
 4. **No "view archived cattle" list UI** — `includeArchived=true` works on the backend (§3.24) but the herd list screen has no toggle for it yet; a sold/deceased animal is only reachable today via a genealogy link from one of its calves, or by knowing its id.
 5. **No bull-management screen** — bulls can only be registered inline from the "Record Insemination" sheet (§3.25/§3.27); there's no way to view/edit a bull's details afterward, or to see which cows a given bull has sired, from a dedicated screen.
 6. **Bulls are cow/buffalo only** — the schema's `type` enum has no `goat` option, so a goat's insemination sheet always falls through to the free-text "Other" path (§3.27). Would need a schema/enum change if goat breeding tracking with structured bulls is wanted.
 7. **Bull-suitability recommendations** — user's stated future direction: the system should eventually suggest which registered bull is most suitable for a given cow's AI, presumably from genetic/offspring-performance data (calf outcomes, milk yield of resulting daughters, inbreeding avoidance) tied back to `bullId` on `inseminationHistory`. Not started — needs enough real insemination/calving/milk data linked through `bullId` to be meaningful, which is exactly why "structured fields only, no analytics yet" was the deliberate scope for §3.25/§3.27. The data model (every insemination already carries `bullId`, every calf already links `motherId` back to its dam) is intentionally shaped so this can be layered on later without a schema rework — worth revisiting once there's a real body of linked data to compute over.
-8. **Commit or stash the in-progress `godhan-app` changes** (auth, location, profile screens, plus everything from this session) before starting new feature work, so nothing gets lost or conflated with new commits.
-9. **Point services at real infrastructure for a full end-to-end test** — this pass verified each service in isolation against local MongoDB; a true smoke test (all services up together via `docker-compose`, mobile app pointed at them) still hasn't been done, since no Dockerfiles are filled in yet (all 7 are currently empty) and there's no compose file. This matters more than it used to now that §3.20's fix means real cross-service tokens actually work — worth re-verifying the full session's work under `docker-compose` rather than per-service isolation once it exists.
+8. ~~Commit or stash the in-progress `godhan-app` changes~~ — done 2026-07-20: committed and pushed, along with this session's own new work (§3.38/§3.39/§3.40) and every other service's own previously-uncommitted work found sitting in the workspace (`godhan-cattle-iot`, `godhan-core`, `helper-service`, `notification-service`, `user-service`, `godhan-iot-prediction` — the last of which had no `.git` at all and was freshly initialized against its existing GitHub remote).
+9. **Point services at real infrastructure for a full end-to-end test** — this pass verified each service in isolation against local MongoDB; a true smoke test (all services up together via `docker-compose`, mobile app pointed at them) still hasn't been done, since no Dockerfiles are filled in yet for the original 7 (cattle/marketplace/notification/wallet/helper/report/user-service) and there's no top-level compose file spanning all of them. This matters more than it used to now that §3.20's fix means real cross-service tokens actually work — worth re-verifying the full session's work under `docker-compose` rather than per-service isolation once it exists. `godhan-iot-prediction` is the one exception — it already has a real `Dockerfile`/`docker-compose.yml` (§3.33), though its compose file spins up its own isolated Mongo container rather than pointing at the shared one the other services use in local dev.
 10. **Finish the localization migration (§3.29/§3.31/§3.32)** — infrastructure, auth/home/settings/nav, all cattle screens, wallet, reports, and helper management are done for English/Hindi/Marathi/Gujarati; marketplace, referral, notifications list, and the IoT pairing screen are still English-only strings hardcoded in place. Also worth a native-speaker review pass on the Hindi/Marathi/Gujarati translations before shipping — they were authored directly rather than sourced from a professional translator.
 11. Uncomment and properly wire `membershipRoutes` / `walletWebhookRoutes` in `user-service` — fix the bugs noted in §3.1 first.
+12. ~~IoT alerts still don't produce any notification, in-app or push~~ — done, §3.36. Both alert producers (`godhan-cattle-iot`'s device-side alerts and `godhan-iot-prediction`'s prediction-triggered ones) now resolve a `farmerId` and notify. Real push delivery is confirmed working per item 1 above; only actual on-a-real-phone delivery is untested.
+13. **No read/dismiss state for alerts** (§3.33) — they just accumulate; the Python-created ones have an unused `delivered` field and `godhan-cattle-iot`'s own `Alert` model doesn't even have one.
+14. **The MQTT device→ingestion bridge has no timestamp field to work with** (§3.33) — the reference ESP32 firmware has no RTC/NTP, so every ingested reading is stamped at receipt time. Fine for live readings; means offline-buffered readings replayed on reconnect land with the replay time, not when they actually happened. Needs a firmware-side NTP addition to fix, not a backend change.
+15. **S3 bucket/IAM user/bucket policy not yet created** (§3.37) — all the code is built and verified in mock mode, but real file uploads can't be tested until the user creates the actual AWS resources and provides credentials (steps and exact policy JSON are in §3.37).
+16. **No dedicated "reassign device to a different cattle" screen** (§3.40) — works today via unpair + re-run pairing from the new animal's Overview tab; a purpose-built reassign flow (skip WiFi re-entry, just re-write `cattleId` over BLE to an already-configured collar) would be smoother.
+17. **Farm-wide Expense & Income tracking still doesn't exist** (spec §15) — §3.39 built a genuinely working *per-cattle* expense ledger and estimated-profit summary, but the Home dashboard's "Expenses" quick-action is still a dead stub (`onClick = {}`, `HomeScreen.kt`), and there's no screen for costs that aren't tied to one animal (fuel, equipment, general labor) or for tracking actual milk-sale income. This was the plan's own top Phase-1 recommendation before the cattle-detail-tabs work took priority instead.
+18. **Milk pricing engine still fully unbuilt** (spec §9) — §3.39's expense/profit summary uses a single flat `MILK_PRICE_PER_LITER` env var as an honest stand-in; a real fixed/daily/formula-rate engine (FAT/SNF-adjusted) is a separate, self-contained piece of work noted in Phase 2 below.
+19. **No ESP32 firmware in this repo implements BLE provisioning at all** — found while documenting §3.40's fix (see `docs/IOT_DEVICE_DESIGN.md` §3.6.1 for the full writeup). The mobile app's BLE pairing flow (`IotPairingViewModel`/`AndroidBluetoothScanner`) is real, working code with its own concrete GATT contract (service `00001234-...`, 4 characteristics, `GODHAN_`-prefixed device names) — but `godhan iot docs/esp_32_firmware_skeleton.cpp`, this repo's only firmware skeleton, has zero BLE code, and doesn't match either the mobile app's real contract or this doc's own original §3.6 spec. Real hardware pairing can't be end-to-end tested until firmware work closes this gap — recommended direction is matching the mobile app's already-shipped contract (§3.6.1) rather than the reverse.
 
 Everything in §4 below assumes §3.1 is done — that part is no longer the blocker it was.
 
@@ -445,12 +712,14 @@ Adapting the 3-phase structure already agreed in `PLATFORM_DESIGN.md`, cross-ref
 | Item | Client status | Backend status | Action |
 |---|---|---|---|
 | Auth (OTP + profile) | Built | Built (user-service) | Finish membership/webhook route wiring |
-| Cattle CRUD + milk logs | Built | Built (cattle-service, basic model) | Extend model toward lifecycle fields (§12/§13 of spec) incrementally, not all at once |
-| Expenses & income | **Missing (client)** | Not present as a service | Build `:feature-expense-income` screens (spec §15) + minimal endpoints, reuse cattle-service or a small new service |
-| Helper management (attendance, salary, PDFs) | **Missing (client)** | Most complete backend service | Client is the gap here — build `HelperList/AddHelper/MarkAttendance/SalarySlip` screens against the existing helper-service API |
+| Cattle CRUD + milk logs + full lifecycle (9/9 detail tabs) | ✅ Built (§3.39) | ✅ Built | Done — offline-tolerant too (§3.38) |
+| Per-cattle expenses + estimated profit | ✅ Built (§3.39) | ✅ Built | Done, self-contained scope |
+| Farm-wide expense/income tracking | **Still missing** — Home's "Expenses" quick-action is a dead stub | Not present as a service | See "still open" item 17 above |
+| Helper management (attendance, salary, PDFs) | ✅ Built | Most complete backend service | Done — verified live |
 | Wallet (basic balance + top-up) | Thin | ✅ Fixed, boots and responds | Flesh out client wallet screens against the now-working API |
-| Push notifications | Built (client display) | Not dispatching | See §3.2 — wire real FCM dispatch |
+| Push notifications | ✅ Built, dispatching for real (§3.34) | ✅ Real FCM dispatch wired | Only actual on-a-real-phone delivery is untested |
 | Basic reports (monthly, milk trend) | Built | ✅ Fixed, boots and responds | Verify client renders correctly against it end-to-end |
+| Offline-tolerant persistence | ✅ Built (§3.38) | n/a (client-side cache) | Done |
 
 **This phase is the highest-leverage place to spend the next block of work** — it's mostly plumbing and two missing client modules (expenses, helper), not new architecture.
 
@@ -461,12 +730,13 @@ Adapting the 3-phase structure already agreed in `PLATFORM_DESIGN.md`, cross-ref
 - Feed & input marketplace — `marketplace-service` has basic listing CRUD; needs catalog/SKU model, commission rules, coupons.
 - Milk pricing engine (fixed/daily/formula, §9) — fully unbuilt; self-contained enough to build as its own module once P0 is clear.
 - Referral — client screens exist (407 lines); confirm backend `referral` routes are complete end to end.
-- Advanced reports / ML integration — Python AI service not started (spec calls for AI in Python specifically — keep that boundary rather than folding ML into Node services).
+- Advanced reports / ML integration — **the Python AI service now exists and works** (`godhan-iot-prediction`, §3.33): heat detection, calving prediction, milk-yield forecasting, self-scheduled every 6h, correctly kept as Python rather than folded into the Node services (matching the spec's own boundary). `report-service`'s `getCattlePredictionReport` still honestly returns `[]` (§3.22) rather than reading this — wiring that up is the remaining piece here.
 
 ### Phase 3 — Ecosystem
 *Goal: the pieces that make Godhan defensible — IoT-backed cattle marketplace with escrow, micro-hubs, delivery.*
 
-- IoT collar ingestion pipeline (MQTT → Mongo timeseries → alerts → dashboard) — **entirely unbuilt**, largest single chunk of remaining backend work. Firmware skeleton and hardware BOM already exist in `docs/godhan iot docs/`; the gap is the ingestion service + device shadow + Android BLE provisioning flow (client currently only has a bare scanner, no pairing UX).
+- **IoT collar ingestion pipeline — built (2026-07-19), see §3.33.** MQTT → Mongo → prediction → alerts → farmer-facing API → mobile UI, all real and live-verified, previously the largest single chunk of remaining backend work.
+- **IoT device↔cattle assignment — fixed end-to-end (2026-07-20), see §3.40.** Pairing and unpairing now genuinely take effect (previously a silent no-op across the whole platform — see §3.40 for the full bug). What's still genuinely missing here: the mobile IoT screen is pairing/provisioning + (as of §3.39) a device-status/temperature-sparkline view, but not a running live-vitals dashboard; the **Android BLE provisioning UX** works but isn't especially polished (per-step, no batching); and there's no dedicated reassign-to-a-different-cattle screen (still open item 16).
 - Cattle Hub P2P marketplace with grading, verification score, video-verification booking, escrow/token reservation, wallet settlement states (spec §14, §17) — large, well-specified, zero code yet on either side.
 - Micro-hub & delivery management — no delivery app, no micro-hub model.
 - Digital Health Passport — depends on IoT pipeline existing first.
@@ -480,11 +750,12 @@ AI revenue planner/credit scoring, breeding genetics, carbon credits, blockchain
 ## 5. Recommended immediate next steps
 
 1. ~~Fix the P0 backend bugs~~ — done 2026-07-16, see §3.1.
-2. Decide what to do with the uncommitted `godhan-app` changes (commit, or discuss what's mid-flight) before layering new work on top.
-3. Pick one Phase-1 gap to close next — **Helper Management client screens** is the strongest candidate: backend is already the most complete service and now boots correctly, spec is detailed (§8), and mockups exist (`docs/mockups/mockup-15 Attendance Management.png`).
-4. In parallel, wire notification-service to real FCM dispatch — currently silent, and several other features (bids, payroll, device alerts) depend on this working.
-5. Fill in the (currently empty) Dockerfiles and add a `docker-compose.yml` so all 7 services can be brought up together for a true end-to-end test, rather than the one-at-a-time verification done in this pass.
-6. Defer IoT, Admin app, Delivery app, and Phase 4 items until Phase 1 is demonstrably working end-to-end for one farmer on one device talking to a fully composed backend.
+2. ~~Decide what to do with the uncommitted `godhan-app` changes~~ — done 2026-07-20, see "still open" item 8.
+3. ~~Pick one Phase-1 gap to close next — Helper Management client screens~~ — done, built end-to-end (§3.23).
+4. ~~Wire notification-service to real FCM dispatch~~ — done (§3.34), including real credentials.
+5. Fill in the (currently empty) Dockerfiles and add a `docker-compose.yml` so all services can be brought up together for a true end-to-end test, rather than the one-at-a-time verification done throughout this plan (still open item 9) — the highest-leverage remaining infrastructure gap.
+6. Pick the next Phase-1 gap: **farm-wide Expense & Income tracking** (still open item 17) is the strongest candidate — it's the one remaining dead stub on the Home dashboard, and the per-cattle expense infrastructure from §3.39 already covers half the data model.
+7. Defer Admin app, Delivery app, and Phase 4 items until Phase 1 is demonstrably working end-to-end for one farmer on one device talking to a fully composed backend.
 
 ---
 
