@@ -283,15 +283,26 @@ IoT UI actually reads, so a "successful" pairing never showed up anywhere in the
 `docs/DEVELOPMENT_PLAN.md` §3.40: that same registration call now also links `cattle-service`'s
 side for real.
 
-**Gap worth flagging clearly**: `godhan iot docs/esp_32_firmware_skeleton.cpp` (this repo's only
-ESP32 firmware skeleton) has **zero BLE code** — no service/characteristic UUIDs, no `GODHAN_`
-advertising name, nothing matching either this section or §3.6 above. The mobile app's BLE
-pairing flow is real and working code, verified as far as the phone-side GATT writes go, but
-there is currently no firmware in this repository for it to actually talk to — real hardware
-pairing can't be end-to-end tested until firmware work implements a matching BLE peripheral
-(ideally matching this section's real, already-shipped mobile contract, since redoing the mobile
-side to match §3.6's original JSON-blob design would be the more disruptive direction at this
-point).
+**Update (2026-07-20): firmware written, not yet hardware-tested.** The gap above (this repo's
+`esp_32_firmware_skeleton.cpp` had zero BLE code) is now closed in code: the skeleton has a full
+BLE GATT server matching this section's contract exactly (same 4 characteristics, same
+`GODHAN_`-prefixed advertising name), `Preferences`-backed persistence so a pairing survives deep
+sleep/power cycles, a factory-reset trigger (hold the `GPIO0` boot button, present on every board
+revision referenced in §2.3), and the previously-missing `POST /api/devices/register` call to
+`godhan-cattle-iot`. Restructured around the device's existing deep-sleep-every-5-minutes
+architecture: `setup()` now checks NVS first and only enters BLE provisioning mode if not already
+provisioned, bounded to a 5-minute advertising window so an unpaired collar sitting in a box
+doesn't drain its battery waiting forever.
+
+**Still genuinely unverified**: there is no toolchain available to compile or test embedded C++
+against real ESP32 hardware in the environment this was written in. It was hand-reviewed (a full
+logical read-through caught one real concurrency risk — the original draft attempted the blocking
+WiFi-connect step directly inside a BLE GATT write callback, which runs on the ESP32 BLE stack's
+own task and could stall it; moved to the main polling loop instead) but **not compiled, not
+flashed, not paired against a real phone**. Before relying on it: compile against the project's
+actual ESP32 Arduino core version (the exact `BLEDevice`/`BLECharacteristic` API — e.g.
+`BLEDevice::deinit()`'s exact signature — has shifted across core versions), then run a real
+on-device pairing test against the mobile app.
 
 ### 3.7 Offline Storage (SPIFFS)
 
