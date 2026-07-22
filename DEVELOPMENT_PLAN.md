@@ -1,6 +1,6 @@
 # Godhan Platform — Development Plan
 
-**Compiled:** 2026-07-16 · **Updated:** 2026-07-20 (offline-first persistence, all 9/9 cattle-detail tabs, and the IoT device↔cattle assignment bug fixed — see §3.38–§3.40; also, every service's previously-uncommitted work, including this session's, is now committed and pushed, see "still open" item 8)
+**Compiled:** 2026-07-16 · **Updated:** 2026-07-22 (refreshed the "At a glance" table below only — it had gone stale since 2026-07-20 and didn't reflect the Farm Finances/milk-pricing/AI Revenue Planner work from that same day, let alone anything since: a real `role` JWT claim + admin-gated routes, a cross-user profile-exposure security fix, the config→MongoDB migration, dark mode, My Address/Help & Support, the isNewUser onboarding bug, dairy-shop admin-only catalog management, a new offers/coupon system, the buyer-side marketplace loop, and the rest of the localization mop-up. The §3.x narrative sections and the numbered "still open" list below still reflect 2026-07-20 and haven't been reconciled against this — treat the table as the current source of truth until they are)
 **Sources:** `Godhan master app promt.md` (vision spec, workspace root), `docs/PLATFORM_DESIGN.md` + `docs/SERVICE_ANALYSIS_REPORT.md` (2026-05-07 backend audit — now under `docs/`, not `godhan-services/newCattle/`, which no longer exists as a directory), live inspection of `godhan-app/` and `godhan-services/` source on 2026-07-16/17/19/20. `docs/PREDICTION_PIPELINE_END_TO_END.md` is the detailed companion to §3.33 below — read that for the full IoT/prediction writeup, this file only summarizes it.
 
 This document exists to answer one question at any point in the project: **what's actually built, what's broken, and what's next.** It supersedes nothing — the master prompt stays the source of truth for *vision*; this file tracks *status and sequencing*.
@@ -15,10 +15,11 @@ periodically rather than trusting it blindly.
 
 | Category | Feature | Status | Notes |
 |---|---|---|---|
-| **Core / Auth** | OTP, email/password, Google sign-in | ✅ | All 3 flows live-verified end-to-end (§3.4) |
+| **Core / Auth** | OTP, email/password, Google sign-in | ✅ | All 3 flows live-verified end-to-end (§3.4); a real bug meant only OTP ever set `isNewUser` correctly — email/Google logins silently skipped onboarding (CompleteProfileScreen/PermissionsScreen) entirely until fixed 2026-07-21 via a real `profileCompleted` flag |
 | | Cross-service auth (shared `JWT_SECRET`) | ✅ | Was silently broken platform-wide until fixed (§3.20) |
+| | Cross-user profile-data exposure (security) | ✅ | Found & fixed 2026-07-21: `GET/PUT /users/:id` had no ownership check at all — any authenticated user could read/edit anyone else's profile, `passwordHash` included |
 | | Membership/webhook routes in `user-service` | ❌ | Commented out, has its own pre-existing bugs (§3.1, still open #11) |
-| | Role-based (admin) access | ❌ | Nothing sets a `role` claim in the JWT yet (still open #2) |
+| | Role-based (admin) access | ✅ | Was ❌ as of 2026-07-20 (`core.middleware.role('admin')` existed but no login ever issued a `role` claim, so only internally-minted tokens could satisfy it). Fixed 2026-07-21 — `generateAuthTokens` now includes the user's real `role`; `scripts/promoteAdmin.mjs` bridges account provisioning until the planned Angular admin portal exists. Live-verified: a real promoted login, not an internal token, successfully calls admin-gated routes |
 | **Cattle & Herd** | CRUD, list + pagination | ✅ | (§3.11) |
 | | Cattle detail — all 9 tabs (Overview, Milk, Calving, Breeding, Medical, IoT Health, Expenses, Documents, Timeline) | ✅ | (§3.39) |
 | | Lifecycle: calving/calf creation, genealogy, archival, PDF export | ✅ | (§3.24) |
@@ -36,8 +37,9 @@ periodically rather than trusting it blindly.
 | | ESP32 firmware BLE provisioning | 🟡 | Written 2026-07-20 to match the mobile app's real BLE contract — **not hardware-tested** (`IOT_DEVICE_DESIGN.md` §3.6.1, still open #19) |
 | | Live-vitals dashboard (running readings view, not just pairing) | 🟡 | Device status + temperature sparkline exist (§3.39); not a full live dashboard |
 | | Read/dismiss state for alerts | ❌ | Alerts just accumulate (still open #13) |
-| **Marketplace** | Cattle Hub: browse, bid, token-unlock paywall | ✅ | (§3.16) |
-| | Dairy shop: browse, cart, checkout | ✅ | (§3.16, §3.21) |
+| **Marketplace** | Cattle Hub: browse, bid, token-unlock paywall | ✅ | (§3.16); buyer-side loop closed 2026-07-21 — My Requests & Bids with real outbid/won/accepted notifications, search filters (price/district/grade), favorites/wishlist |
+| | Dairy shop: browse, cart, checkout | ✅ | (§3.16, §3.21); 2026-07-21: product creation/stock-adjust/order-status are now admin-only (previously any farmer could tamper with the catalog or mark another farmer's order delivered), new orders correctly stamped "paid" not "pending", a real order-history screen added, a 10-item sample catalog seeded |
+| | Offers/coupon system (admin-created discount codes) | ✅ | Built 2026-07-21 — percent or flat, optional cap/category/min-order restriction, per-farmer and total usage limits, applied at dairy-shop checkout and marketplace unlock with a live discount preview; creating one broadcasts a real (in-app + push) notification to every farmer |
 | | Membership tier gating (Gold/Platinum) | ❌ | Grade/verification UI exists, no enforcement (Partial table) |
 | | Escrow / video-verification booking / micro-hubs | ❌ | Large, spec'd, zero code (Phase 3) |
 | **Wallet & Coins** | Balance, transactions, add-money | ✅ | (§3.13) |
@@ -45,24 +47,28 @@ periodically rather than trusting it blindly.
 | | Escrow/reserved/token wallet states | ❌ | Plain balance only (Partial table) |
 | **Helper Mgmt** | Attendance, salary slips, contract upload | ✅ | Built end-to-end (§3.23) |
 | | Advance-tracking | ❌ | Schema field exists, unused (still open #3) |
-| **Money model** | Farm-wide Expense & Income tracking | ❌ | Home's "Expenses" quick-action is a dead stub; per-cattle version *is* built (§3.39, still open #17) |
-| | Milk pricing engine (fixed/daily/formula, FAT/SNF) | ❌ | Flat `MILK_PRICE_PER_LITER` used as an honest stand-in (still open #18) |
-| **Reports & Home** | Herd/per-cattle reports, home dashboard summary | ✅ | Both were silently all-zero before fixing (§3.18, §3.19) |
+| **Money model** | Farm-wide Expense & Income tracking | ✅ | Was ❌ as of this table's last real update — actually built 2026-07-20 (Farm Finances screen: real milk-sale income, farm-wide/herd/salary/purchase expenses, genuine net profit/loss). This table just never caught up; see "still open" item 17 for the now-outdated version of this note |
+| | Milk pricing engine (fixed/daily/formula, FAT/SNF) | ✅ | Also built 2026-07-20, same gap in this table — real per-farmer fixed/daily/FAT-SNF-formula pricing, replacing the flat `MILK_PRICE_PER_LITER` stand-in ("still open" item 18 is stale) |
+| **Reports & Home** | Herd/per-cattle reports, home dashboard summary | ✅ | Both were silently all-zero before fixing (§3.18, §3.19); Home dashboard now also has quick-actions for Dairy Shop and the Revenue Planner, and the bottom nav was restored to 5 tabs (Home/Cattle/Market/Wallet/Reports — Market and Wallet existed and were fully localized but had silently dropped out of the visible nav bar) |
 | **Referral** | Code generation, referee tracking, coin rewards | ✅ | Built from scratch (§3.15, §3.21) |
-| **Notifications** | List, read/unread, real FCM push dispatch | ✅ | Real credentials verified live (§3.34) |
+| **Notifications** | List, read/unread, real FCM push dispatch | ✅ | Real credentials verified live (§3.34); a real token-registration timing bug (registered once at app launch, before login existed, never re-attempted after) was found and fixed 2026-07-21 |
+| **Money model / AI** | AI Revenue Planner (herd growth, credit advisor, feed efficiency) | ✅ | Built 2026-07-20 — three transparent, rule-based views over real data, explicitly not a real ML model; moved up from Phase 4 below since it shipped well ahead of that sequencing |
 | **Localization** | Infra + auth/home/settings/cattle/wallet/reports/helper screens (EN/HI/MR/GU) | ✅ | (§3.29/§3.31/§3.32) |
-| | Marketplace, referral, notifications list, IoT pairing screen | ❌ | Still hardcoded English (still open #10) |
+| | Notifications list, IoT pairing screen | ✅ | Both localized 2026-07-21 (Notifications also got a real bug fix — its filter chips were built against a fictional type taxonomy no backend service actually sends) |
+| | Referral | ✅ | Checked expecting it to need the same treatment — already fully localized from an earlier uncommitted pass; this table's old "still hardcoded English" note was stale |
+| | Marketplace (cattle + dairy shop) | ❌ | The only remaining English-only surface — a repeatedly-confirmed deliberate scope boundary, not an oversight (still open #10 is otherwise resolved) |
 | **Infra** | Single shared MongoDB database | ✅ | (§3.35) |
 | | S3 uploads (code) | ✅ | Verified live in mock mode (§3.37) |
 | | S3 bucket/IAM/policy (real infra) | ❌ | User-side AWS setup still needed (still open #15) |
 | | `docker-compose` full integration test | ❌ | Each service verified in isolation only (still open #9) |
 | | Domain/use-case layer (`domain/usecase/`) | ❌ | Empty folder, logic lives in ViewModels/repos (Partial table) |
-| | Dark mode | ❌ | No theme support found (Pending list) |
-| | My Address / Help & Support screens | ❌ | Still placeholder stubs (Pending list) |
-| | Subscription/feature-flag gating | ❌ | No tier-based access control anywhere (Pending list) |
-| **Not started** | Admin (Angular) app | ❌ | Zero code |
+| | Real Gradle build environment | ✅ | First real build in this project's history (2026-07-21) — JDK 17 installed, `:shared`/`:androidApp` both compile. Closes out the single most-repeated caveat across every doc in this project ("not build-verified, no Gradle available"); doesn't retroactively re-verify every earlier feature's runtime behavior |
+| | Hardcoded business constants → DB-backed config | ✅ | 25 keys (fees, thresholds, rates, limits) migrated into MongoDB via `core.utils.config`, 2026-07-21 — a config value can now change without a code deploy |
+| | Dark mode | ✅ | Was ❌ — built 2026-07-21 (a real System/Light/Dark toggle; the color schemes existed from an earlier uncommitted pass but were never exposed) |
+| | My Address / Help & Support screens | ✅ | Was ❌ — built 2026-07-21 (My Address now routes to the real profile editor; Help & Support has a DB-backed FAQ + support contact, not hardcoded) |
+| | Subscription/feature-flag gating | ❌ | No tier-based access control anywhere (Pending list) — distinct from the offers/coupon system above, which is a discount mechanism, not a subscription tier |
+| **Not started** | Admin (Angular) app | ❌ | Zero code — planned; the backend is now ready for it (real `role` claims, `promoteAdmin.mjs` bridge, admin-gated dairy-shop/offer/user-listing routes all already live) |
 | | Delivery app | ❌ | Zero code |
-| | AI Revenue Planner | ❌ | Phase 4 |
 | | Digital Health Passport | ❌ | Depends on IoT pipeline (now unblocked, still not started) |
 | | Carbon credits / blockchain identity / federated-learning digital twin | ❌ | Phase 4, explicitly deferred by design |
 
