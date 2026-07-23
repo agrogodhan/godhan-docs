@@ -16,6 +16,13 @@
 // specifies; the FFT algorithm itself was already correct and is unchanged. Added posture
 // classification (standing/lying/walking/grazing) from the existing MPU6050 samples — see the
 // comment above classifyPosture() for why step counting is deliberately not included here.
+//
+// 2026-07-24: added a real activity-sampling path using the MPU6050's own low-power Cycle Mode +
+// FIFO (see configureAccelCycleMode()/drainActivityFifo()) — the chip keeps sampling accelerometer
+// data on its own tens-of-uA budget while the ESP32 is fully deep-asleep, instead of the ESP32
+// being blind for the whole 5-minute gap. This is still NOT a true step count (see the comment on
+// ACTIVITY_MAG_THRESHOLD_G for why) — it's a continuously-sampled activity-positive rate, reported
+// honestly as that rather than dressed up as steps.
 // =======================================================
 
 #include <WiFi.h>
@@ -197,6 +204,138 @@ const char* classifyPosture(float accX_ms2, float accY_ms2, float accZ_ms2) {
   return "standing";
 }
 
+// ---------- Activity sampling (MPU6050 Cycle Mode + FIFO) ----------
+// Real step counting needs continuous high-frequency sampling this device's 5-minute deep-sleep
+// cycle can't observe directly (see the "Deliberately NOT doing step counting" comment on
+// classifyPosture() above). This is a different, real fix for that gap: the MPU6050 has its own
+// low-power "Cycle Mode" (its datasheet's Accelerometer-Only Low Power Mode — confirmed real, and
+// draws only tens of uA, independent of any web-search-sourced frequency numbers below) that lets
+// it keep sampling autonomously into its onboard 1024-byte FIFO while the ESP32's own CPU/radio
+// are fully deep-asleep. The ESP32 just needs to wake briefly and drain the FIFO before it fills.
+//
+// This only works because the MPU6050 shares the ESP32's own always-on 3.3V rail — confirmed via
+// IOT_DEVICE_DESIGN.md Sec 2 ("3.3V rail -> ESP32-S3, MPU-6050, ...", no switched sensor rail
+// documented anywhere) — so the chip itself never loses power across an ESP32 deep sleep, and
+// Cycle Mode configuration would persist on its own. In practice it still needs reapplying on
+// every wake anyway, because mpu.begin() (Adafruit_MPU6050's own init, called every wake for the
+// existing posture-reading path) rewrites PWR_MGMT_1 itself — see configureAccelCycleMode()'s
+// own comment.
+//
+// Register addresses and bit positions below are cross-checked against two independent
+// open-source MPU6050 register references (i2cdevlib's MPU6050.h and kriswiner/MPU6050's header +
+// example code, both fetched and quoted directly, not from memory) — not the primary InvenSense/
+// TDK datasheet PDF, which returned no extractable text in this environment (both a generic PDF-
+// to-markdown fetch and this project's own PDF page-render tool failed on it — poppler-utils isn't
+// installed here). Register addresses and single-bit positions (CYCLE, ACCEL_FIFO_EN, FIFO_EN,
+// FIFO_RESET) agreed exactly between both sources. The LP_WAKE_CTRL *frequency table* did not:
+// one source's example code comment implies {1.25, 5, 20, 40} Hz for values {0,1,2,3}, the other
+// (i2cdevlib's own documented table) gives {1.25, 2.5, 5, 10} Hz for the same four values. Both
+// agree only on value 0 = 1.25 Hz, so that's the one used here (ACCEL_CYCLE_LP_WAKE_CTRL below) —
+// not the fastest available option, but the only one not resting on a guess. Anyone revisiting
+// this for higher resolution needs the real datasheet (or an oscilloscope/timed measurement
+// against real hardware) to resolve the discrepancy before trusting a faster setting.
+#define MPU6050_I2C_ADDR 0x68 // Adafruit_MPU6050's own default address for this same physical chip
+#define REG_FIFO_EN     0x23
+#define REG_USER_CTRL   0x6A
+#define REG_PWR_MGMT_1  0x6B
+#define REG_PWR_MGMT_2  0x6C
+#define REG_FIFO_COUNTH 0x72
+#define REG_FIFO_COUNTL 0x73
+#define REG_FIFO_R_W    0x74
+
+#define ACCEL_CYCLE_LP_WAKE_CTRL 0     // both sources agree: value 0 == 1.25 Hz (see comment above)
+#define ACCEL_8G_LSB_PER_G 4096.0f     // MPU6050 datasheet-standard sensitivity for the +/-8g range,
+                                        // matching mpu.setAccelerometerRange(MPU6050_RANGE_8_G) in
+                                        // setup() — must stay in sync if that range ever changes
+#define FIFO_SAMPLE_BYTES 6            // accel-only FIFO entries: X/Y/Z, 2 bytes each, no gyro/temp
+// 1024-byte FIFO / 6 bytes-per-sample =~ 170 samples =~ 136s of headroom at the confirmed 1.25 Hz
+// rate. Draining every 75s leaves comfortable margin against overflow (including ESP32 wake-up
+// jitter) without needing to trust either disputed faster LP_WAKE_CTRL table above — chosen as
+// 300s (UPLOAD_INTERVAL_MINUTES*60) / 75s = 4 exactly, so the full publish cycle lands on a clean
+// 5-minute cadence instead of drifting to whatever multiple of the drain interval happens to
+// exceed it.
+#define FIFO_DRAIN_INTERVAL_S 75
+// Not a step threshold — a threshold on whether a given low-rate accelerometer sample looks like
+// "the animal was moving" at all. Unvalidated starting point, same status as
+// POSTURE_WALK_MAG_THRESH_G: run through a calibration process like
+// calibrate_posture_thresholds.mjs against real labeled field data before trusting it.
+#define ACTIVITY_MAG_THRESHOLD_G 1.15f
+
+RTC_DATA_ATTR uint32_t secondsSinceLastPublish = 0;
+RTC_DATA_ATTR uint32_t activitySampleCount = 0;
+RTC_DATA_ATTR uint32_t activeSampleCount = 0;
+
+void mpuWriteReg(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(MPU6050_I2C_ADDR);
+  Wire.write(reg);
+  Wire.write(value);
+  Wire.endTransmission();
+}
+
+uint8_t mpuReadReg(uint8_t reg) {
+  Wire.beginTransmission(MPU6050_I2C_ADDR);
+  Wire.write(reg);
+  Wire.endTransmission(false);
+  Wire.requestFrom((int)MPU6050_I2C_ADDR, 1);
+  return Wire.available() ? Wire.read() : 0;
+}
+
+// Must run AFTER mpu.begin()/setAccelerometerRange() in setup() — Adafruit_MPU6050's own init
+// sequence writes PWR_MGMT_1 (waking the chip into its normal continuous-read mode, which the
+// existing posture-reading loop needs) and would otherwise clobber Cycle Mode right back off.
+// Re-running this at the end of every full wake (see setup()) is what makes Cycle Mode resume for
+// the short drain-only wakes that follow, not a one-time setup call.
+void configureAccelCycleMode() {
+  mpuWriteReg(REG_USER_CTRL, 0x00);   // disable FIFO operation while reconfiguring
+  mpuWriteReg(REG_USER_CTRL, 0x04);   // FIFO_RESET (bit 2) — clear any stale contents
+  mpuWriteReg(REG_FIFO_EN, 0x08);     // ACCEL_FIFO_EN (bit 3) only — no gyro, no temp, keep it lean
+  // PWR_MGMT_2: LP_WAKE_CTRL (bits 7:6) = ACCEL_CYCLE_LP_WAKE_CTRL, accel standby bits (5:3) = 0
+  // (accel stays active — the whole point), gyro standby bits (2:0) = 1 (gyro off, unused here).
+  mpuWriteReg(REG_PWR_MGMT_2, (ACCEL_CYCLE_LP_WAKE_CTRL << 6) | 0x07);
+  mpuWriteReg(REG_PWR_MGMT_1, 0x20);  // CYCLE bit (5) = 1, SLEEP bit (6) = 0
+  mpuWriteReg(REG_USER_CTRL, 0x40);   // FIFO_EN (bit 6) — start buffering
+}
+
+// Reads whatever has accumulated in the FIFO since the last drain and folds it into the
+// RTC-persisted counters. Reads exactly however many samples are actually present rather than
+// assuming a fixed count per call — deliberately robust to the same LP_WAKE_CTRL rate uncertainty
+// flagged above, since it never needs to know the real Hz to behave correctly, only that
+// FIFO_DRAIN_INTERVAL_S is short enough not to overflow it.
+void drainActivityFifo() {
+  // Same unspecified-evaluation-order hazard as the per-sample reads below — two named reads,
+  // not one inline expression.
+  uint8_t countHi = mpuReadReg(REG_FIFO_COUNTH);
+  uint8_t countLo = mpuReadReg(REG_FIFO_COUNTL);
+  uint16_t fifoBytes = (countHi << 8) | countLo;
+  uint16_t sampleCount = fifoBytes / FIFO_SAMPLE_BYTES;
+
+  for (uint16_t i = 0; i < sampleCount; i++) {
+    Wire.beginTransmission(MPU6050_I2C_ADDR);
+    Wire.write(REG_FIFO_R_W);
+    Wire.endTransmission(false);
+    Wire.requestFrom((int)MPU6050_I2C_ADDR, FIFO_SAMPLE_BYTES);
+    if (Wire.available() < FIFO_SAMPLE_BYTES) break; // partial read — bail rather than misalign
+
+    // Named intermediate reads, not (Wire.read() << 8) | Wire.read() inline — the evaluation
+    // order of the two Wire.read() calls on either side of `|` is unspecified in C++, so an
+    // inline version risks the compiler swapping high/low bytes unpredictably.
+    uint8_t xHi = Wire.read(), xLo = Wire.read();
+    uint8_t yHi = Wire.read(), yLo = Wire.read();
+    uint8_t zHi = Wire.read(), zLo = Wire.read();
+    int16_t rawX = (xHi << 8) | xLo;
+    int16_t rawY = (yHi << 8) | yLo;
+    int16_t rawZ = (zHi << 8) | zLo;
+
+    float x = rawX / ACCEL_8G_LSB_PER_G;
+    float y = rawY / ACCEL_8G_LSB_PER_G;
+    float z = rawZ / ACCEL_8G_LSB_PER_G;
+    float magnitude = sqrtf(x * x + y * y + z * z);
+
+    activitySampleCount++;
+    if (magnitude > ACTIVITY_MAG_THRESHOLD_G) activeSampleCount++;
+  }
+}
+
 // ---------- Functions ----------
 float readBatteryVoltage() {
   int raw = analogRead(BATTERY_PIN);
@@ -332,11 +471,11 @@ void uploadOffline() {
   Serial.println("Offline data uploaded and cleared");
 }
 
-void publishData(float accX, float accY, float accZ, float temp, float batteryV, int rumination, const char* posture) {
-  char payload[320];
+void publishData(float accX, float accY, float accZ, float temp, float batteryV, int rumination, const char* posture, float activityRate, uint32_t activitySamples) {
+  char payload[400];
   snprintf(payload, sizeof(payload),
-           "{\"device_id\":\"%s\",\"accX\":%.2f,\"accY\":%.2f,\"accZ\":%.2f,\"temp\":%.2f,\"battery\":%.2f,\"rumination_events\":%d,\"posture\":\"%s\"}",
-           DEVICE_ID, accX, accY, accZ, temp, batteryV, rumination, posture);
+           "{\"device_id\":\"%s\",\"accX\":%.2f,\"accY\":%.2f,\"accZ\":%.2f,\"temp\":%.2f,\"battery\":%.2f,\"rumination_events\":%d,\"posture\":\"%s\",\"activity_rate\":%.3f,\"activity_samples\":%lu}",
+           DEVICE_ID, accX, accY, accZ, temp, batteryV, rumination, posture, activityRate, (unsigned long)activitySamples);
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) reconnectMQTT();
@@ -546,6 +685,22 @@ void setup() {
     return;
   }
 
+  // Short drain-only wake: every FIFO_DRAIN_INTERVAL_S, just pull whatever the MPU6050's Cycle
+  // Mode has buffered since last time and go straight back to sleep — no WiFi, no MQTT, no
+  // Adafruit_MPU6050 init (that would fight with Cycle Mode, see configureAccelCycleMode()'s
+  // comment). Only every UPLOAD_INTERVAL_MINUTES does the full publish cycle below run. This is
+  // what makes activity sampling possible without the ESP32 itself staying awake continuously —
+  // the accelerometer keeps sampling on its own low-power budget regardless of which kind of wake
+  // this is.
+  secondsSinceLastPublish += FIFO_DRAIN_INTERVAL_S;
+  if (secondsSinceLastPublish < (uint32_t)(UPLOAD_INTERVAL_MINUTES * 60)) {
+    Wire.begin();
+    drainActivityFifo();
+    esp_sleep_enable_timer_wakeup((uint64_t)FIFO_DRAIN_INTERVAL_S * uS_TO_S_FACTOR);
+    esp_deep_sleep_start();
+    return; // unreachable — deep sleep never returns — but keeps intent obvious to a reader
+  }
+
   ssid     = prefs.getString("ssid", "");
   password = prefs.getString("pass", "");
   String cattleId = prefs.getString("cattleId", "");
@@ -560,6 +715,12 @@ void setup() {
   }
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+
+  // Catches whatever accumulated in the FIFO during the short-wake period leading up to this full
+  // wake. Safe to read here even though mpu.begin()/setAccelerometerRange() above already exited
+  // Cycle Mode (that only stops *new* samples from being buffered — it doesn't clear what's
+  // already sitting in the FIFO, which persists until an explicit FIFO_RESET or a full read-out).
+  drainActivityFifo();
 
   sensors.begin();
 
@@ -604,15 +765,30 @@ void setup() {
   // registerWithBackend()'s own comment.
   registerWithBackend(cattleId, batteryV);
 
+  // activitySampleCount can legitimately be 0 (e.g. Cycle Mode init failed silently, or this is
+  // the very first publish after provisioning with no prior short-wake period) — guard against
+  // divide-by-zero rather than let a NaN slip into the payload.
+  float activityRate = activitySampleCount > 0 ? (float)activeSampleCount / (float)activitySampleCount : 0.0f;
+
   // Publish data (or store offline)
-  publishData(accX_avg, accY_avg, accZ_avg, temp_avg, batteryV, rumination, posture);
+  publishData(accX_avg, accY_avg, accZ_avg, temp_avg, batteryV, rumination, posture, activityRate, activitySampleCount);
 
   // OTA update check
   checkForOTA();
 
-  // Go to deep sleep until next upload
+  // Reset for the next window, then re-arm Cycle Mode so the upcoming short drain-only wakes have
+  // something to drain again — see configureAccelCycleMode()'s comment for why this has to be
+  // reapplied every full wake rather than surviving on its own.
+  activitySampleCount = 0;
+  activeSampleCount = 0;
+  secondsSinceLastPublish = 0;
+  configureAccelCycleMode();
+
+  // Go to sleep for FIFO_DRAIN_INTERVAL_S, not the full UPLOAD_INTERVAL_MINUTES — every wake now
+  // uses this same short interval, with secondsSinceLastPublish (checked near the top of setup())
+  // deciding whether it's a drain-only wake or time for the next full publish cycle.
   Serial.println("Going to deep sleep...");
-  esp_sleep_enable_timer_wakeup(UPLOAD_INTERVAL_MINUTES * 60 * uS_TO_S_FACTOR);
+  esp_sleep_enable_timer_wakeup((uint64_t)FIFO_DRAIN_INTERVAL_S * uS_TO_S_FACTOR);
   esp_deep_sleep_start();
 }
 
