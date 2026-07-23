@@ -1,0 +1,125 @@
+# Analysis: Godhan Vision Intelligence Layer Spec
+
+Analysis of `Godhan_Vision_Layer_Spec.docx` (v1.0, 21 July 2026), cross-checked against the actual `godhan-services` codebase as of 2026-07-23.
+
+## What it proposes
+
+A 9-section product/technical spec proposing a "sensor-triggered vision layer" for Godhan — cattle photos analyzed by a VLM, but only when IoT sensor anomalies flag an animal, rather than farmer-initiated like the competitor.
+
+- **Positioning**: against Gau Swastha, a live competitor (33-disease photo screener, 26 Karnataka vet polyclinics, ~40k training images). Godhan's counter isn't "screen more diseases" — it's "trigger vision *from* continuous sensor data" so problems surface days earlier and feed the existing ration-computation engine.
+- **Phase 1 scope**: two low-liability husbandry models (Body Condition Score, dung scoring) that avoid vet-in-the-loop requirements; udder/hoof models deferred to Phase 2 behind a licensed-vet review queue.
+- **Architecture**: on-device capture gating (blur/brightness/framing checks) → S3 upload → VLM inference with a strict JSON schema (never names a drug/dose, always returns differentials, refuses on bad images) → BCS/dung feed straight into the NASEM DMI ration equation.
+- Also covers regulatory exposure (India's 2009 infectious-disease reporting act, DPDP Act 2023), a 4-phase roadmap, and reference nutrition formulae.
+
+## Genuinely strong
+
+- The "sensor decides when to look" inversion is a real, defensible product wedge — a photo-only competitor structurally can't replicate it.
+- The safety/liability section is unusually disciplined: no drug/dose ever generated, mandatory differentials, hard-coded ration floor independent of model output, mandatory vet review for anything above threshold. This reads like it was written by someone who's actually worried about killing a farmer's cow, not just shipping a feature.
+- Data strategy is sequenced sensibly (VLM-with-prompt now → few-shot → fine-tuned on-device later), so it ships without waiting on a labeled dataset.
+
+## Where it's disconnected from what actually exists
+
+The document's central premise is that Godhan "observes continuously" via an *existing* sensor stream, with 7-day baselines triggering vision prompts (e.g. "rumination down >15% AND activity down → photograph the udder"). Checked against the real code:
+
+| Doc assumes | Actually exists |
+|---|---|
+| Rumination minutes/day, 7-day baseline | `ruminationEvents` is a raw **event count**, no minutes, no 7-day rollup |
+| Step count / activity tracking | Doesn't exist — only a derived accelerometer magnitude (`sqrt(x²+y²+z²)`) shown for display |
+| Lying time | Doesn't exist anywhere in the stack |
+| Milk yield (sensor-derived) | Farmer manually logs it (`Cattle.milkLogs`); a separate Python service *predicts* it, doesn't measure it |
+| Percent-change-from-baseline anomaly rules | The only real anomaly logic is a 24-hour (not 7-day) window feeding a RandomForest classifier in `godhan-iot-prediction`, whose own README calls its labels "heuristic bootstrap, not ground truth" |
+
+So the trigger matrix in section 3.2 — the mechanism the whole competitive argument rests on — can't be built as specified today. Two of its four trigger conditions (lying time, step count) reference fields that don't exist at all. The good news: photo upload/S3 storage for cattle already exists (`POST /cattle/:id/images`) and could be reused, so the *capture* side isn't greenfield even though the *trigger* side is.
+
+### Supporting evidence (file-level)
+
+- `godhan-cattle-iot/src/models/sensorData.model.js:4-13` — stores `deviceId`, `cattleId`, `timestamp`, `temp`, `accX/accY/accZ`, `ruminationEvents` (count). No step/activity-count field, no lying-time field, no baseline/rolling-average or anomaly logic in this service.
+- `cattle-service`'s `iotHealth.service.js:24-31` — derives one scalar `activityMag = sqrt(accX²+accY²+accZ²)` per reading for display only, no baseline math. `prediction.service.js` / `alert.service.js` just fetch already-computed docs from `heat_predictions`, `calving_predictions`, `milk_predictions`, `alerts` — no health-scoring or trend logic native to this service.
+- `godhan-iot-prediction` — a Python project (not Node, hence no `package.json`): `features.py:20-27` computes **24-hour** rolling means/deltas for `temp`, `ruminationEvents`, `activityMag`, feeding a RandomForest heat-detection classifier and a calving/milk-yield regression model — not simple percent-change threshold rules. `alerts.py` fires from model predictions, deduped per 24h episode, not from raw percent-change triggers.
+- `cattle-service`'s `POST /:id/images` (`cattle.controller.js:295-315`, route at `cattle.routes.js:55`) — multer memory storage → S3, stored in `Cattle.images: [String]`. Pure storage/display (herd photo gallery); no vision/ML analysis on these images anywhere today.
+- `Cattle.model.js:83-91` — `milkLogs[]` is farmer-entered (morning/evening liters + fat/snf), with a 7-day `avgMilkDaily` virtual (`cattle.model.js:136-142`). `MilkSale` model is herd-level sales revenue, unrelated to per-cow yield. `godhan-iot-prediction/src/milk.py` predicts tomorrow's yield from sensor features and compares against these farmer-logged numbers — it does not measure yield from sensors.
+
+## Other gaps worth flagging
+
+- No cost/effort estimate for building the missing sensor telemetry (lying time in particular usually needs an IMU-based posture classifier, not a trivial addition) before Phase 1's trigger matrix is usable.
+- "Fusion lift" (sensor+vision vs vision-alone accuracy) is called the single number that justifies the strategy, but no experiment can run until real baselines exist to fuse against.
+- The hardware-cost rebuttal (section 3.4) is directionally right but unquoted — Phase 0's "obtain hard BOM quotes" is correctly flagged as unstarted, not a nice-to-have.
+
+## Bottom line
+
+Strong strategic and safety thinking, but Phase 1 as literally specified (sensor-triggered capture) is blocked on IoT data that doesn't exist yet. The realistic sequencing is: build the missing 7-day rumination/lying-time/activity aggregation first (or descope Phase 1 to *scheduled* prompts only, which the doc itself lists as one valid trigger — "Scheduled monthly, no trigger required" for BCS), ship BCS+dung on that basis, and treat the full anomaly-trigger matrix as a Phase 1.5/2 dependency rather than a Phase 1 deliverable.
+
+## Appendix: Task list — what it actually takes to compute 7-day rumination/activity/lying-time baselines
+
+Scoped against the real firmware and services, not the design doc's aspirational spec. **None of this blocks the document's own Phase 1** (BCS + dung can ship on scheduled/farmer-initiated capture, which the trigger matrix itself lists as valid — no sensor trigger required). This is the work needed before the *full* trigger matrix (mastitis/lameness triggers in Phase 2) can be real rather than simulated.
+
+### Tier 0 — Prerequisite, blocks everything below — ✅ done 2026-07-23
+
+**Correction to the original finding above**: `docs/ESP32 Firmware_ BLE + Wi-Fi + MQTT + OTA.txt` (with the hardcoded `accX/accY/accZ` and `rumination_events = random(10, 20)` stub) turned out to be a stale draft, not the maintained firmware. The real one — confirmed by matching its payload field names, MQTT topic, and even its FFT rumination algorithm exactly against `godhan-cattle-iot`'s ingestion code and `IOT_DEVICE_DESIGN.md` §3.9's spec — is `docs/godhan iot docs/esp_32_firmware_skeleton.cpp`, referenced from `IOT_DEVICE_DESIGN.md` §3.6.1 and last touched 2026-07-20. It already read a **real** MPU6050 and DS18B20; only two things were actually broken:
+
+1. **Rumination mic was wired to nonexistent hardware.** The FFT algorithm (128 samples, Hamming window, 1-50Hz chew-band, threshold=3) already matched §3.9's spec exactly, but the sample *acquisition* read an analog pin (`analogRead(MIC_PIN=35)`) — there is no analog mic in the BOM, only the digital I²S INMP441 (§2.1 row U5, GPIO 6/7/8). Fixed by replacing the acquisition with real `i2s_read()` calls into the same `vReal[]`/FFT pipeline, scale-adjusted for the I²S sample range. The chew-detection amplitude threshold is carried over unvalidated and needs empirical recalibration against real recorded audio — flagged explicitly in-code as `RUM_CHEW_AMPLITUDE_THRESHOLD`, not silently assumed correct.
+2. **No posture/lying-time derivation existed.** Added `classifyPosture()`, reusing the tilt-angle + magnitude thresholds already proven out in the unused `cattle_firmware` project's `sensors.h` (see Tier 1 below), computed from the MPU6050 samples already being taken each wake. New `posture` field (`standing|lying|walking|grazing`) added to the MQTT payload.
+
+**Deliberately not done**: step counting. This device deep-sleeps for 5 minutes and wakes for ~2 seconds per cycle — it physically cannot observe most of an animal's steps in that window, so any step count derived from it would be extrapolated noise, not a measurement (this is the Tier 3 problem below, and remains unsolved — it needs either continuous-sampling firmware or an on-chip pedometer that keeps counting through deep sleep). Posture is different and *is* valid from a brief sample, since it's a single-instant classification, not a windowed count.
+
+**Backend changes to match**: `godhan-cattle-iot/src/models/sensorData.model.js` now has an optional `posture` field (enum: standing/lying/walking/grazing; optional so older un-reflashed devices don't fail ingestion), and `mqtt.service.js`'s `handleSensorData()` passes it through. Smoke-tested end-to-end via `POST /api/data` — round-trips correctly.
+
+**Still open, out of scope for this pass**: the DS18B20 (GPIO4) and MPU6050 I²C bus pin assignments in this firmware haven't been cross-checked against `IOT_DEVICE_DESIGN.md` §2.3's pin map (which specifies GPIO18 for 1-Wire, GPIO4/5 for I²C) — flagged in-code as a TODO, not fixed here since it's outside "accelerometer + rumination" scope. No hardware-in-the-loop test has been run (no ESP32 toolchain available in this environment) — same caveat as the rest of this firmware file.
+
+### Tier 1 — Lying time — ✅ done 2026-07-23
+
+Posture is a single-instant classification (gravity-vector tilt), not a windowed pattern — unlike steps or rumination, it doesn't need continuous high-frequency sampling, so it can be derived server-side from the existing per-interval accelerometer summary.
+
+- ✅ **Done as part of Tier 0**: on-device tilt/magnitude classification into `standing | lying | walking | grazing`, added to `sensorData.model.js` and passed through by the MQTT bridge. On-device rather than server-side in the end, since the firmware already has the accelerometer samples in hand each wake — no reason to ship raw accel just to reclassify it server-side.
+- ✅ **Nightly aggregation job**: `godhan-cattle-iot/src/services/lyingBaseline.cron.js`, wired up in `app.js` alongside `initMqtt()`, runs daily at 02:00 (matching the vision spec's own n8n "nightly per-animal rollup" convention, §6.4). For each cattle that reported posture data in the most recently completed UTC day, it time-weights the gap between consecutive readings by the earlier reading's posture (capped at 15 minutes — 3x the firmware's 5-minute wake interval — so a multi-hour offline gap can't be misattributed as lying time), sums it into a per-day `lying_daily` document (new `lyingDaily.model.js`), then rolls the last up-to-7 `lying_daily` entries into a `lying_baselines` document (new `lyingBaseline.model.js`) holding `rollingMean7dMinutes`, `latestDayMinutes`, and `daysOfData`.
+- A baseline document is only written once **3 days** of history exist (`MIN_DAYS_FOR_BASELINE`) — a "7-day mean" computed from one day of data is noise wearing a baseline's costume, not a baseline. Consumers should treat a missing `lying_baselines` document as "not enough history yet," not "zero lying time."
+- Verified with a scripted fixture (2 days of pre-seeded history + 1 real day of sensor_data readings with a hand-calculable expected lying-minutes total), asserted against the actual sweep output, then cleaned up — not just "it ran without throwing."
+- **Calibration tooling built, real calibration still pending real data** (2026-07-24): confirmed there's no published literature threshold to substitute in for a neck-collar mounting — the field either uses leg-mounted tilt sensors (different geometry, doesn't transfer) or trains a classifier on labeled data, so fabricating "calibrated" numbers without real animal data isn't honest. Built instead:
+  - `docs/godhan iot docs/calibrate_posture_thresholds.mjs` — grid-search fitter that takes labeled `(accX, accY, accZ, label)` readings and finds the threshold combination maximizing macro-F1 (not raw accuracy, so a standing-dominated dataset can't let the fitter ignore the rarer classes), reports a confusion matrix, and warns if any posture has under 20 labeled examples. Self-tested against hand-modeled synthetic data (`--self-test`) to confirm the search and scoring logic itself work correctly — explicitly **not** a real calibration result, and the tool refuses to let that output be mistaken for one.
+  - `docs/godhan iot docs/POSTURE_CALIBRATION_PROTOCOL.md` — the concrete field procedure: observe one collared animal continuously, log posture-bout start/end times by hand, join those bouts to the corresponding `sensor_data` readings (converting m/s² to g first), and run the tool. Flags that a single calibration session won't generalize across breeds (Gir/Sahiwal/Murrah buffalo carry differently than crossbreds, same risk the vision spec's own §7.3 calls out for its BCS/dung models) or collar-mounting variation, so this needs periodic repeats, not a one-time fix.
+  - The firmware's threshold comment now points at this tool/protocol instead of a dead-end "needs calibration" note. The `#define` values themselves are unchanged — there was nothing trustworthy to replace them with yet, and guessing would be worse than leaving the honest gap flagged.
+
+### Tier 2 — Rumination (needs real firmware + confirmed hardware) — mostly done 2026-07-23
+
+- `IOT_DEVICE_DESIGN.md` §3.9 already specified the right approach: on-device FFT over the INMP441 mic (128 samples @ 2kHz, Hamming window, 1-50Hz peak-count). ✅ The real firmware (`esp_32_firmware_skeleton.cpp`) already had this FFT algorithm implemented correctly — the bug was upstream of it (reading a nonexistent analog mic instead of the real I²S INMP441), fixed as part of Tier 0 above.
+- **First confirm the mic is actually populated** on the PCB/BOM being used for pilots — the design doc specifies it; this fix assumes it's there but that hasn't been physically verified.
+- **Still open**: the chew-detection amplitude threshold needs empirical recalibration against real recorded chewing audio — the current value is carried over from the old analog-mic draft, only scale-adjusted for the I²S sample range, not re-derived from real data.
+- ✅ **7-day rolling baseline built** (2026-07-24) — but not via `godhan-iot-prediction/src/features.py`'s rolling window as originally guessed above. That Python code computes an ephemeral in-memory feature for one ML model's prediction call; it produces nothing another service could query, so extending it wouldn't actually give the trigger-matrix job anything to compare against. Built the same persisted-baseline pattern as Tier 1 instead, entirely in `godhan-cattle-iot`:
+  - **A key correctness finding first**: each `sensor_data.ruminationEvents` reading turned out to be a bare 0-or-1 flag, not a count or rate — the on-device counter is a plain global that resets every deep-sleep reboot, and the FFT check runs exactly once per 5-minute wake (confirmed by reading the firmware, not assumed). Chewing is bursty, unlike posture, so it can't be time-weighted between readings the way lying time was — each reading is one independent ~64ms snapshot. The correct aggregate is therefore the *proportion* of a day's snapshots that were positive (a scan-sampling estimate of time spent ruminating — the same technique behavior science uses for periodic instantaneous observation), not time-weighted minutes.
+  - New `godhan-cattle-iot/src/models/ruminationDaily.model.js` (`rumination_daily`, per cattle per day: `ruminationPositiveRate`, `sampleCount`) and `ruminationBaseline.model.js` (`rumination_baselines`, per cattle: `rollingMean7dRate`, `latestDayRate`, `daysOfData`) — same shape and same `MIN_DAYS_FOR_BASELINE = 3` floor as Tier 1's lying-time collections.
+  - New `ruminationBaseline.cron.js`, wired into `app.js`, running daily at 02:05 (five minutes after the lying-time job, purely to avoid both hitting `sensor_data` in the same instant).
+  - Verified with the same kind of scripted fixture as Tier 1 (pre-seeded 2-day history + 1 real day of readings with a hand-calculable expected rate), all 6 assertions passing, then cleaned up.
+- **Not yet wired into the trigger matrix**: this baseline is available to compare against, but the mastitis row's full condition ("rumination down >15% **AND** activity down") still can't fire — the activity half has no data source (Tier 3, structurally blocked). Adding a rumination-only half-condition (mirroring how the lameness trigger uses only the lying-time half) is a natural next step, not done here since it wasn't asked for yet.
+
+### Tier 3 — Step / activity count (needs firmware; likely the hardest of the three)
+
+- Server-side step-counting is **not feasible** at the current publish cadence (one summary reading per 30s-5min interval) — discrete step detection needs continuous high-frequency sampling (typically 25-100Hz), which the platform doesn't stream today (by design, for battery/bandwidth reasons).
+- Two firmware options:
+  - **(a) Recommended** — run a lightweight on-device step-detection algorithm (peak-count on accel magnitude between publishes, or use the MPU-6050's built-in DMP pedometer if that library is used) and report a `steps` delta each interval. Cheap, no bandwidth cost.
+  - (b) Stream raw high-frequency accelerometer windows for backend processing — expensive in battery and bandwidth, works against the platform's low-power design goals. Not recommended.
+- Extend `sensorData.model.js` with a `steps` field; extend the nightly job to roll a 7-day activity baseline the same way as rumination.
+
+### Tier 4 — Wire into the actual trigger matrix — ✅ three of six rows done
+
+Of the vision spec's six trigger-matrix rows (§3.2), **three** are now wired up — each using half of a two-signal AND condition where implemented, because the other half's data source doesn't exist. The remaining three (milk-yield/rumination-stable dung trigger, activity-spike estrus suppression, and the step-count half of the lameness trigger) need baselines that don't exist yet — not implemented as stubs, since a rule with no real data behind it is dead code pretending to be infrastructure, not a smaller version of the feature.
+
+**Built:**
+
+- **`godhan-cattle-iot/src/services/anomalyScan.cron.js`** — hourly (`0 * * * *`, matching §6.4's "Anomaly scan | Hourly"), wired into `app.js`. Now evaluates two rules, each documented in-code as weaker than the spec's original two-signal AND design (materially higher false-positive rate, not silently downgraded):
+  - **Lameness** ("Lying time up >20%, step count down >25% → photograph hooves"), using only the lying-time signal — step count doesn't exist (Tier 3). Guard: 30-minute baseline floor (`MIN_LYING_BASELINE_MINUTES`) against noisy swings on a near-zero baseline.
+  - **Mastitis** ("Rumination down >15% vs 7-day baseline AND activity down → photograph the udder"), added 2026-07-24, using only the rumination-drop signal — no activity baseline exists (Tier 3). Guard: `MIN_RUMINATION_BASELINE_RATE` (0.05) against the same class of noise, on a 0.0-1.0 rate rather than minutes (see Tier 2's rumination-rate note above).
+  - Both rules share a same-day de-duplication helper (`alreadyAlertedToday`, keyed by `cattleId` + alert `type` independently, so an animal tripping both rules on the same day gets both alerts, not one suppressing the other — verified explicitly) against existing `Alert` documents, since the underlying baselines only refresh once a night regardless of the hourly scan cadence.
+  - Both fire through the **existing** `createAlert()` → `notifyFarmer()` path (already wired to notification-service, already what the mobile app's dashboard reads) rather than inventing new capture-request plumbing — there is no `visionCaptures` schema, mobile capture screen, or VLM inference pipeline anywhere in the codebase yet (confirmed by search), so the honest endpoint of "wiring the trigger" today is a farmer-facing notification telling them what to go photograph, not a structured capture-request record nothing would consume. `alert.service.js`'s `alertTitle()` now maps `RUMINATION_DROP_ANOMALY` to "Possible mastitis — photo needed", alongside the existing lameness/battery titles.
+- **`cattle-service`'s existing `reminder.cron.js`** — extended with the "Scheduled monthly, no trigger required → BCS" row, which needs no baseline or IoT pairing at all (unlike every device-triggered row). Added `Cattle.lastBcsPromptSentAt`, checked against a `BCS_PROMPT_INTERVAL_DAYS` config (default 30) inside the *existing* daily sweep loop rather than a new cron — same "due again on a rolling basis" shape as the PD-confirm and calving reminders already there. This deliberately lives in `cattle-service`, not `godhan-cattle-iot`, because BCS prompting must reach every active animal regardless of IoT pairing, and `cattle-service` already owns the all-cattle daily sweep with direct `farmerId` access — routing it through `godhan-cattle-iot`'s Device-alert plumbing would silently exclude every un-collared animal.
+- All three rules verified with scripted fixtures asserting real pass/fail/de-dup behavior (not just "ran without throwing"), including a dual-firing-animal case proving the two anomaly-scan rules dedupe independently, then cleaned up. Services restarted and confirmed healthy with all crons scheduled.
+
+**Still open**: the remaining four trigger rows, each blocked on a baseline that doesn't exist (rumination 7-day rolling baseline — Tier 2's still-open item; any activity/step baseline — Tier 3, structurally blocked by the deep-sleep firmware architecture; milk-yield baseline — real farmer-logged data exists via `Cattle.avgMilkDaily` but nothing compares it against a rolling trend yet).
+
+### One more data-quality note
+
+The firmware has no RTC/NTP sync, so `timestamp` on ingested readings currently defaults to server receipt time, not device time (`PREDICTION_PIPELINE_END_TO_END.md`). Fine for rough ordering, but worth fixing (NTP sync on boot) before trusting daily-boundary aggregations precisely — a reading logged near midnight could land in the wrong day's bucket under intermittent connectivity.
+
+### Existing infrastructure that's already fine, no changes needed
+
+- `sensorData.model.js`'s index on `{ cattleId: 1, timestamp: -1 }` already supports efficient 7-day range queries — nothing to add here.
+- The cron pattern (`node-cron`, daily schedule, error-logged not thrown) is already established in `report-service` and `marketplace-service` — reuse it rather than introducing a new scheduling mechanism. If the aggregation job ends up living in the Python `godhan-iot-prediction` service instead of Node, follow its existing `src/scheduler.py` self-scheduling pattern instead of cron.

@@ -1,6 +1,6 @@
 // =======================================================
 // ESP32 Firmware Skeleton for Cow Wearable (Extended)
-// - Collects data from sensors (IMU + Temp + Rumination Mic with FFT)
+// - Collects data from sensors (IMU + Temp + Rumination Mic with FFT + posture)
 // - Stores aggregates locally in SPIFFS if Wi-Fi/MQTT fails
 // - Uploads via Wi-Fi + MQTT every 5 minutes
 // - Supports OTA firmware update
@@ -10,6 +10,12 @@
 //   reset), matching godhan-app's real, already-shipped BLE contract exactly
 //   (see docs/IOT_DEVICE_DESIGN.md §3.6.1) — not yet hardware-verified, see
 //   that section's own gap note for why.
+//
+// 2026-07-23: rumination mic switched from analogRead() (no analog mic exists in the hardware
+// BOM — that path could never have worked) to real I2S reads from the INMP441 the BOM actually
+// specifies; the FFT algorithm itself was already correct and is unchanged. Added posture
+// classification (standing/lying/walking/grazing) from the existing MPU6050 samples — see the
+// comment above classifyPosture() for why step counting is deliberately not included here.
 // =======================================================
 
 #include <WiFi.h>
@@ -28,6 +34,7 @@
 #include "OneWire.h"
 #include "DallasTemperature.h"
 #include <arduinoFFT.h>
+#include <driver/i2s.h>
 
 // ---------- Wi-Fi & MQTT config ----------
 // ssid/password are no longer compile-time constants — see the BLE provisioning
@@ -79,16 +86,36 @@ Adafruit_MPU6050 mpu;
 OneWire oneWire(4);            // GPIO4 for DS18B20
 DallasTemperature sensors(&oneWire);
 
-// Rumination mic input
-#define MIC_PIN 35   // ADC pin connected to MEMS mic output
+// Rumination mic — INMP441 digital MEMS mic over I2S, per the actual hardware BOM
+// (docs/IOT_DEVICE_DESIGN.md §2.1 row U5, GPIO map §2.3). An earlier draft of this file read an
+// *analog* mic via analogRead(MIC_PIN=35) — there is no analog mic in the BOM, only this digital
+// I2S part, so that path could never have worked against real hardware. The FFT algorithm itself
+// (128 samples, Hamming window, 1-50Hz chew-frequency band, threshold=3) was already correct and
+// matches §3.9's spec exactly — only the sample *acquisition* needed fixing.
+#define I2S_MIC_PORT      I2S_NUM_0
+#define I2S_MIC_WS_PIN    6   // GPIO6  — matches IOT_DEVICE_DESIGN.md §2.3
+#define I2S_MIC_SCK_PIN   7   // GPIO7
+#define I2S_MIC_SD_PIN    8   // GPIO8
+#define I2S_MIC_DMA_BUF_COUNT 4
+#define I2S_MIC_DMA_BUF_LEN   256
+// Unvalidated starting point carried over from the analog-mic draft, only scale-adjusted for the
+// I2S sample range (see the >>16 shift in detectRuminationFFT()) — needs empirical recalibration
+// against real recorded chewing audio before this number means anything in the field.
+#define RUM_CHEW_AMPLITUDE_THRESHOLD 200
 
 // ---------- FFT config ----------
 #define SAMPLES 128             // must be power of 2
-#define SAMPLING_FREQUENCY 2000 // Hz (depends on ADC speed)
+#define SAMPLING_FREQUENCY 2000 // Hz — matches §3.9's spec; drives the I2S sample rate below
 
 arduinoFFT FFT = arduinoFFT();
 double vReal[SAMPLES];
 double vImag[SAMPLES];
+
+// TODO(hardware bring-up): the DS18B20 OneWire pin (GPIO4 above) and the MPU6050's I2C bus
+// (Wire.begin() with no explicit pins in setup(), below) haven't been cross-checked against
+// IOT_DEVICE_DESIGN.md §2.3's pin map (which puts 1-Wire on GPIO18 and I2C SDA/SCL on GPIO4/5) —
+// out of scope for this fix (accelerometer + rumination only), but flagging so it isn't mistaken
+// for already-verified. Same "not yet hardware-tested" caveat as the rest of this file.
 
 // ---------- Timers ----------
 #define UPLOAD_INTERVAL_MINUTES 5
@@ -112,9 +139,9 @@ double vImag[SAMPLES];
 
 // GPIO0 is the standard ESP32 "BOOT" button on every dev-board revision referenced in this
 // repo's hardware docs (see docs/IOT_DEVICE_DESIGN.md §2.3's own GPIO0/BOOT row) and doesn't
-// collide with any pin this file already uses (34, 35, 4, or the MPU6050's default I2C pins) —
-// reused here rather than adding a dedicated reset button, matching the original design intent
-// of "BLE only re-activates on factory reset (hardware button hold)" (§3.6 point 5).
+// collide with any pin this file already uses (34, 4, 6/7/8 for the I2S mic, or the MPU6050's
+// I2C pins) — reused here rather than adding a dedicated reset button, matching the original
+// design intent of "BLE only re-activates on factory reset (hardware button hold)" (§3.6 point 5).
 #define FACTORY_RESET_PIN 0
 
 Preferences prefs;
@@ -130,6 +157,46 @@ float temp_sum = 0;
 int sample_count = 0;
 int rumination_events = 0;
 
+// ---------- Posture classification ----------
+// Deliberately NOT doing step counting here (unlike docs/olddocs chatgpt's cattle_firmware
+// project, which has real step-detection code): this device wakes for ~2 seconds every
+// UPLOAD_INTERVAL_MINUTES (5 min) and deep-sleeps the rest of the time, so it physically cannot
+// observe most of the animal's steps — any "step count" derived from this sampling window would
+// be extrapolated noise, not a measurement. Posture is different: it's a single-instant
+// classification of what the animal is doing *right now*, so an instantaneous reading taken once
+// per wake is legitimate (this is how periodic-sampling posture/lying-time systems in precision
+// livestock farming generally work) and can be aggregated server-side into daily lying minutes by
+// weighting each sample by the interval it represents.
+//
+// Thresholds ported from docs/olddocs chatgpt's cattle_firmware/sensors.h (already existed,
+// unvalidated in the field there too) — that project reads accel in g directly from raw LSB
+// counts, while Adafruit_MPU6050's getEvent() returns m/s^2, so values are converted to g before
+// classification to reuse the same threshold constants.
+//
+// 2026-07-24: confirmed there's no published literature threshold to substitute in here instead —
+// neck-collar posture classification research either uses leg-mounted tilt sensors (different
+// mounting geometry, doesn't transfer) or trains a classifier on labeled field data. The latter is
+// exactly what these numbers need: run docs/godhan iot docs/calibrate_posture_thresholds.mjs
+// against real labeled readings (protocol in docs/godhan iot docs/POSTURE_CALIBRATION_PROTOCOL.md)
+// and paste its output here once that data exists. Do not hand-tune these by eyeballing logs.
+#define POSTURE_WALK_MAG_THRESH_G   1.35f   // magnitude above this = walking
+#define POSTURE_GRAZING_TILT_DEG   -25.0f   // head-down tilt angle = grazing
+#define POSTURE_LYING_ACCZ_THRESH_G 0.25f   // |accZ| below this = lying (collar near-horizontal)
+#define G_PER_MS2 9.80665f
+
+const char* classifyPosture(float accX_ms2, float accY_ms2, float accZ_ms2) {
+  float accX = accX_ms2 / G_PER_MS2;
+  float accY = accY_ms2 / G_PER_MS2;
+  float accZ = accZ_ms2 / G_PER_MS2;
+  float magnitude = sqrtf(accX * accX + accY * accY + accZ * accZ);
+  float tiltDeg = atan2f(accX, accZ) * (180.0f / PI);
+
+  if (magnitude > POSTURE_WALK_MAG_THRESH_G) return "walking";
+  if (tiltDeg < POSTURE_GRAZING_TILT_DEG) return "grazing";
+  if (fabsf(accZ) < POSTURE_LYING_ACCZ_THRESH_G) return "lying";
+  return "standing";
+}
+
 // ---------- Functions ----------
 float readBatteryVoltage() {
   int raw = analogRead(BATTERY_PIN);
@@ -137,13 +204,53 @@ float readBatteryVoltage() {
   return voltage;
 }
 
+// One-time I2S driver bring-up for the INMP441 — call once from setup(), mirrors the init/read
+// split already used for the MPU6050/DS18B20 (begin() once, read repeatedly).
+bool initI2SMic() {
+  i2s_config_t cfg = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = SAMPLING_FREQUENCY,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = I2S_MIC_DMA_BUF_COUNT,
+    .dma_buf_len = I2S_MIC_DMA_BUF_LEN,
+    .use_apll = false,
+    .tx_desc_auto_clear = false,
+    .fixed_mclk = 0
+  };
+  i2s_pin_config_t pins = {
+    .bck_io_num = I2S_MIC_SCK_PIN,
+    .ws_io_num = I2S_MIC_WS_PIN,
+    .data_out_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = I2S_MIC_SD_PIN
+  };
+  bool ok = i2s_driver_install(I2S_MIC_PORT, &cfg, 0, nullptr) == ESP_OK
+         && i2s_set_pin(I2S_MIC_PORT, &pins) == ESP_OK;
+  if (!ok) Serial.println("Failed to init I2S mic (INMP441)");
+  return ok;
+}
+
 // FFT-based rumination detection
 void detectRuminationFFT() {
-  // Collect audio samples
+  // Collect audio samples from the real INMP441 over I2S (was: analogRead() on a nonexistent
+  // analog mic — see the block comment above MIC config for why that could never have worked).
+  // One I2S sample covers both stereo slots even in ONLY_LEFT mode, so read raw 32-bit frames one
+  // at a time to keep this a straight drop-in replacement for the old per-sample analogRead loop
+  // feeding the same vReal[]/vImag[] arrays and the unchanged FFT pipeline below.
   for (int i = 0; i < SAMPLES; i++) {
-    vReal[i] = analogRead(MIC_PIN);
+    int32_t sample = 0;
+    size_t bytesRead = 0;
+    esp_err_t err = i2s_read(I2S_MIC_PORT, &sample, sizeof(sample), &bytesRead, portMAX_DELAY);
+    // INMP441 sends 24-bit data left-justified in the 32-bit I2S word (~±2^31 raw range) — the
+    // old analog-mic path fed analogRead()'s 12-bit counts (0-4095) straight into the FFT, and
+    // the chew-detection amplitude threshold below was tuned against that scale. Right-shift by
+    // 16 to land in a broadly comparable order of magnitude rather than silently feeding the FFT
+    // six orders of magnitude larger than the threshold expects. This is a starting point, not a
+    // calibrated value — re-tune RUM_CHEW_AMPLITUDE_THRESHOLD below against real recorded audio.
+    vReal[i] = (err == ESP_OK && bytesRead == sizeof(sample)) ? (double)(sample >> 16) : 0.0;
     vImag[i] = 0;
-    delayMicroseconds(1000000 / SAMPLING_FREQUENCY);
   }
 
   // Apply FFT
@@ -156,7 +263,7 @@ void detectRuminationFFT() {
   for (int i = 2; i < SAMPLES / 2; i++) {
     double freq = (i * 1.0 * SAMPLING_FREQUENCY) / SAMPLES;
     if (freq >= 1 && freq <= 50) {
-      if (vReal[i] > 200) { // amplitude threshold (tune experimentally)
+      if (vReal[i] > RUM_CHEW_AMPLITUDE_THRESHOLD) {
         chewDetected++;
       }
     }
@@ -225,11 +332,11 @@ void uploadOffline() {
   Serial.println("Offline data uploaded and cleared");
 }
 
-void publishData(float accX, float accY, float accZ, float temp, float batteryV, int rumination) {
-  char payload[300];
+void publishData(float accX, float accY, float accZ, float temp, float batteryV, int rumination, const char* posture) {
+  char payload[320];
   snprintf(payload, sizeof(payload),
-           "{\"device_id\":\"%s\",\"accX\":%.2f,\"accY\":%.2f,\"accZ\":%.2f,\"temp\":%.2f,\"battery\":%.2f,\"rumination_events\":%d}",
-           DEVICE_ID, accX, accY, accZ, temp, batteryV, rumination);
+           "{\"device_id\":\"%s\",\"accX\":%.2f,\"accY\":%.2f,\"accZ\":%.2f,\"temp\":%.2f,\"battery\":%.2f,\"rumination_events\":%d,\"posture\":\"%s\"}",
+           DEVICE_ID, accX, accY, accZ, temp, batteryV, rumination, posture);
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!client.connected()) reconnectMQTT();
@@ -456,6 +563,10 @@ void setup() {
 
   sensors.begin();
 
+  if (!initI2SMic()) {
+    Serial.println("Rumination detection unavailable this cycle (I2S mic init failed)");
+  }
+
   // Take a few samples for averaging
   for (int i = 0; i < 10; i++) {
     sensors.requestTemperatures();
@@ -478,6 +589,7 @@ void setup() {
   float accZ_avg = accZ_sum / sample_count;
   float temp_avg = temp_sum / sample_count;
   float batteryV = readBatteryVoltage();
+  const char* posture = classifyPosture(accX_avg, accY_avg, accZ_avg);
 
   // Detect rumination events with FFT
   detectRuminationFFT();
@@ -493,7 +605,7 @@ void setup() {
   registerWithBackend(cattleId, batteryV);
 
   // Publish data (or store offline)
-  publishData(accX_avg, accY_avg, accZ_avg, temp_avg, batteryV, rumination);
+  publishData(accX_avg, accY_avg, accZ_avg, temp_avg, batteryV, rumination, posture);
 
   // OTA update check
   checkForOTA();
