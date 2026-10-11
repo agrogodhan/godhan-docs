@@ -1,6 +1,6 @@
 # Godhan Dairy Shop: Look-and-Feel and Checkout Redesign
 
-**Status:** the app-only first slice is built and pushed (section 11); the backend-dependent parts, online payment and the open items in section 10 are still to do.
+**Status:** the app-only first slice is built, pushed and tested with a real order (section 11); the addresses, herd name and contact number work is in section 11.1; the backend-dependent parts, online payment and the open items in section 10 are still to do.
 **Companion files:** `DAIRY_SHOP_UX_MOCKUP.html` (clickable phone mockup of every screen below) and `DAIRY_SHOP_LISTING_SPEC.md` (catalog, GST, delivery fee and phase decisions this document builds on).
 
 ---
@@ -419,7 +419,7 @@ Estimates are rough and assume the existing codebase; they should be re-sized wh
 
 ## 11. Implementation status: app-only first slice (2026-10-11)
 
-Scope chosen with the owner: the look and flow of the mockup using **only what the server already does**, so the app never shows a price or a step the server does not honour. Built in `godhan-app` (commit `0f94c43`); no server change was needed. Phase A of section 8 is therefore **mostly done**; Phase B (backend) is not started.
+Scope chosen with the owner: the look and flow of the mockup using **only what the server already does**, so the app never shows a price or a step the server does not honour. Built in `godhan-app` (commits `0f94c43`, then `1c68061`); the slice itself needed no server change. Phase A of section 8 is therefore **mostly done**; Phase B (backend) is not started.
 
 ### What is built
 
@@ -434,9 +434,11 @@ Scope chosen with the owner: the look and flow of the mockup using **only what t
 
 ### Checked on a phone, and what was not
 
-- **Seen working on a real phone:** the new navigation and header, shop home, product page (including the delivery date and the foldable specifications), cart, address, payment and review steps, the coupon sheet's empty state, clearing the cart.
-- **Not seen on a phone:** the confirmation and order-detail screens (no order was placed, because that would charge the real wallet and there is no cancel or refund yet), the offers banner and coupon list (no coupons were running), "Buy again" (no past orders), the ratings summary and reviews (the test product has none). Their code compiles.
+- **A real test order was placed on production** (2026-10-12): order **#7AC19B**, one "Godhan Test Dairy Feed 25 kg" at the offer price of ₹1150, paid from the wallet, delivered to a test address in Mirzapur. Verified: the confirmation screen (order id, item, address, "Paid: Wallet ₹1150"), the order at the top of My Orders with a "Placed" status, the order-detail screen (status timeline, items, address, payment, "Order these again"), and the wallet (₹10,372 became ₹9,222, with a "Dairy shop order -₹1,150" transaction).
+- **Also seen working on a real phone:** the new navigation and header, shop home, product page (delivery date, foldable specifications), cart, address, payment and review steps, the coupon sheet's empty state, clearing the cart.
+- **Not seen on a phone:** the offers banner and coupon list (no coupons were running), "Buy again" and "Recently viewed" with real data beyond one product, the ratings summary and reviews (the test product has none), and a cancelled or delivered order timeline.
 - **Languages:** the English layout was checked; the Hindi, Gujarati and Marathi bottom-bar labels were not.
+- **The test order stays on production.** There is no cancel or refund path yet, so refunding the ₹1150 needs an admin to mark the order cancelled and credit the wallet by hand.
 
 ### Where this differs from the mockup, and why
 
@@ -452,13 +454,38 @@ Scope chosen with the owner: the look and flow of the mockup using **only what t
 | "Use max" coins chip | A switch that uses the maximum | Same result, simpler control. |
 | Foldable Specifications | Added after review | New request from the owner; folded by default. |
 
-### Follow-ups found while building
+### Bugs found and fixed while testing
+
+| Bug | Cause | Fix |
+|---|---|---|
+| Product photos did not load (403 from S3) | Uploads went to `products/…`, but the bucket's public-read rule covers `product/…` | Uploads now use `product/` (marketplace-service `83b289b`). Photos uploaded before that stay broken and must be re-uploaded. |
+| "Track order" on the confirmation returned to the shop | The screen cleared the order and then popped itself, undoing the move to the detail screen | Navigation order changed; the empty case shows a "Back to shop" button. Not re-tested, because it needs a second real order. |
+| Edit Profile "Save" failed with a long validation error | The app sent empty fields as explicit `null` (`encodeDefaults = true`) and the server rejects a null for any field; an unknown field (`herdName`) is rejected outright | The profile update omits fields that were not set. Save is also disabled, and reads "No changes to save", until something actually differs from what was loaded. |
+| Address and herd-name edits could erase each other | `user-service` replaced the whole `address` object on every update, so a client that did not send `street` or `country` wiped them | Address updates are merged field by field; tested on a scratch database (8 cases). |
+| The shop gap above page titles | The shell's header already reserves the status-bar space, and each screen added it again with a 64 dp bar | Compact 48 dp bar and no second inset on every shop screen. |
+
+### Follow-ups still open
 
 1. The product page still shows a **"Cancel before shipping" chip** from the product flag, but the app has no cancel action yet. Hide it until cancel exists, or build cancel (Phase B).
 2. The order-detail timeline and the "Packing and shipping updates are coming soon" note should be replaced when courier status arrives.
 3. Re-check the bottom-bar labels in Hindi, Gujarati and Marathi on a device.
-4. A test order should be placed once, on a test wallet, to see the confirmation and order-detail screens; there is no refund path yet.
-5. Phase B items still to build: delivery fee and GST rows, saved addresses on the server and the served-pincode check, order status history and cancel with refund, idempotency key, atomic charge and stock, SMS and push status messages.
+4. Phase B items still to build: delivery fee and GST rows, the served-pincode check, order status history and cancel with refund, idempotency key, atomic charge and stock, SMS and push status messages.
+5. Re-upload any product photos uploaded before the `product/` folder fix.
+
+### 11.1 Addresses, herd name and delivery contact number (2026-10-12)
+
+Requested during testing and built in the same pass (app `1c68061`, user-service `235c2dd`, marketplace-service `1b76322`).
+
+- **Profile menu:** "My Address" is now **Addresses**. The screen has two sections.
+  - **Herd address:** the herd name (for example, Shri Hari Dairy) and the address from the profile (village or area, city, state, pincode, and "Location captured" when set), with an **Edit** link to Edit Profile.
+  - **Delivery addresses:** the three most recent addresses used for Dairy Shop orders, each with an **edit (pencil)** and **delete (bin, with a confirmation)** icon, and an **Add delivery address** button. Add and edit share **one bottom-sheet form** (same layout as Record Insemination); edit opens it prefilled. The list is stored on the device, as decided for the cart.
+- **Contact number:** delivery addresses now carry a 10-digit mobile number (starting 6 to 9). It is required on a new address, shown on the Addresses list, checkout address and review steps, the confirmation and the order detail. An address saved before this has no number, shows "No contact number" and cannot be used at checkout until a number is added.
+- **Edit Profile:** a new **Herd name** field and a **Village / area** field under "Herd address"; the section text points to Addresses for delivery addresses.
+- **Backend:**
+  - `user-service`: new `herdName` on the user (max 80 characters, cleared with an empty string); `address.street` may be empty; address updates merge field by field instead of replacing the whole object, so an older app version can no longer erase a village or herd name set from a newer one.
+  - `marketplace-service`: `deliveryAddress.phone` is stored on the order and validated when present; it stays optional so older app versions keep working.
+- **Compatibility:** the new fields are optional everywhere. An older app talking to the new servers keeps working. The new app talking to a server that predates `herdName` fails to save a herd name (the server answers "herdName is not allowed"), which is why the user-service deploy has to come first; saves that do not touch the herd name or village work either way.
+- **Not yet verified on the deployed servers:** saving a herd name and village, and the contact number on a new order. To be checked once Railway has deployed both services.
 
 ---
 

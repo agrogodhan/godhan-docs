@@ -365,3 +365,5 @@ What was built for the farmer app and the API behind it, and where it differs fr
 ## UX redesign follow-up (2026-10-11)
 
 The farmer-app look-and-feel and checkout redesign is in `DAIRY_SHOP_UX_REDESIGN.md` (with a clickable mockup, `DAIRY_SHOP_UX_MOCKUP.html`). Its app-only first slice is built: richer shop home and cards, a card-based product page with a foldable Specifications section, a cart with price details and coupons, a three-step checkout (address, payment, review), a confirmation and an order-detail screen, and the Dairy Shop as a bottom-bar tab. Delivery fee, GST rows, the pincode check, saved addresses on the server, cancel with refund and online payment remain for the backend phases described there.
+
+Later the same day the redesign was tested with a real order, and an Addresses screen, a herd name and a delivery contact number were added; see sections 11 and 11.1 of `DAIRY_SHOP_UX_REDESIGN.md`.
