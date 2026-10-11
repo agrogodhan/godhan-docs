@@ -361,3 +361,7 @@ What was built for the farmer app and the API behind it, and where it differs fr
 - **API additions:** the paged `GET /product` response now includes `brands` and `subcategories` for the chosen category (to fill the filter sheet), the `calf_care` category key is accepted everywhere, and the unpaged call still returns a plain array.
 - **Not in Phase 2:** the pack-size selector, per-variant stock, delivery fee and GST invoice stay in Phase 3. "Similar products" and "Other sizes" stay in Phase 3/4.
 - **Tested:** 13 unit tests, 46 Phase 1 API checks (no regressions) and 14 Phase 2 API checks on a scratch database, and the Android app compiles. It has not yet been run on a device, because that needs the new marketplace-service deployed first.
+
+## UX redesign follow-up (2026-10-11)
+
+The farmer-app look-and-feel and checkout redesign is in `DAIRY_SHOP_UX_REDESIGN.md` (with a clickable mockup, `DAIRY_SHOP_UX_MOCKUP.html`). Its app-only first slice is built: richer shop home and cards, a card-based product page with a foldable Specifications section, a cart with price details and coupons, a three-step checkout (address, payment, review), a confirmation and an order-detail screen, and the Dairy Shop as a bottom-bar tab. Delivery fee, GST rows, the pincode check, saved addresses on the server, cancel with refund and online payment remain for the backend phases described there.

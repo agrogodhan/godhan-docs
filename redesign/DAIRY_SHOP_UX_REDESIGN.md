@@ -1,6 +1,6 @@
 # Godhan Dairy Shop: Look-and-Feel and Checkout Redesign
 
-**Status:** proposal with most open questions answered (2026-10-11); cash on delivery, the courier and four setup items are open (section 10). No code has been changed.
+**Status:** the app-only first slice is built and pushed (section 11); the backend-dependent parts, online payment and the open items in section 10 are still to do.
 **Companion files:** `DAIRY_SHOP_UX_MOCKUP.html` (clickable phone mockup of every screen below) and `DAIRY_SHOP_LISTING_SPEC.md` (catalog, GST, delivery fee and phase decisions this document builds on).
 
 ---
@@ -368,7 +368,7 @@ Existing pieces reused: wishlist/favourites, offers and redemptions, the notific
 
 | Phase | Scope | Depends on |
 |---|---|---|
-| **A. Quick wins (app only, about 1 to 1.5 weeks)** | Cart price-details card (rows that exist today), per-line delete, stock-limit message, cart saved on device, coins toggle with rupee label and the real cap, last address remembered, confirmation with order id, items and **Track order**, tappable orders list with a detail screen, accessibility fixes, skeleton loaders, sticky Add to Cart / Buy Now on the product page, **move shop and checkout strings into resource files so Hindi can be added, hide the "Cash on delivery" chip until COD exists (4.5)** | Nothing new on the server except `GET /order/:id` |
+| **A. Quick wins (app only, about 1 to 1.5 weeks): mostly built, see section 11** | Cart price-details card (rows that exist today), per-line delete, stock-limit message, cart saved on device, coins toggle with rupee label and the real cap, last address remembered, confirmation with order id, items and **Track order**, tappable orders list with a detail screen, accessibility fixes, skeleton loaders, sticky Add to Cart / Buy Now on the product page, **move shop and checkout strings into resource files so Hindi can be added, hide the "Cash on delivery" chip until COD exists (4.5)** | Nothing new on the server except `GET /order/:id` |
 | **B. Checkout v2 (app and API, about 3 to 4 weeks)** | Three-step flow with progress, saved addresses and pincode lookup, delivery fee and GST rows (listing spec Phase 3), order status history and timeline, cancel and refund, idempotency key, atomic charge and stock, price-changed and out-of-stock handling, **served-pincode list in Shop Settings, courier integration (once chosen), push + SMS (2Factor) status messages, Hindi translation of the shop and checkout screens, receipt** | Phase A, listing spec Phase 3 settings applied at checkout, accountant sign-off on invoice and tax split |
 | **C. Online payment (about 3 to 4 weeks plus onboarding)** | UPI and card through **Razorpay**, wallet top-up inline, webhook, reconciliation | Phase B safety fixes, Razorpay merchant account and KYC |
 | **D. Delight (ongoing)** | Offers for you, buy again, recently viewed, similar products and other sizes, pincode check on the product page, personalised filter chips | Traffic and data |
@@ -417,7 +417,52 @@ Estimates are rough and assume the existing codebase; they should be re-sized wh
 
 ---
 
-## 11. Sources and limits
+## 11. Implementation status: app-only first slice (2026-10-11)
+
+Scope chosen with the owner: the look and flow of the mockup using **only what the server already does**, so the app never shows a price or a step the server does not honour. Built in `godhan-app` (commit `0f94c43`); no server change was needed. Phase A of section 8 is therefore **mostly done**; Phase B (backend) is not started.
+
+### What is built
+
+| Area | What the app now does |
+|---|---|
+| **Navigation** | Dairy Shop is a bottom-bar tab (Home, Cattle, Cattle Mkt, Dairy Shop, Reports) and is removed from the Home "More" sheet. The wallet moved out of the bottom bar into the header, between the notification bell and the profile photo. The Home wallet-balance strip is gone; its "Revenue today" line stays as its own row (shown only above ₹0). All shop screens use a compact 48 dp header under the app header. |
+| **Shop home and cards** | Trust row, offers banner (from `/offers/active`), "Buy again" (from past orders), "Recently viewed" (saved on the device), photos that fill the card, "Delivery in N days", out-of-stock and "Only N left" states, infinite scroll, sort and filters (Phase 2). |
+| **Product page** | Card sections on a grey page; rounded photo gallery; breadcrumb; badges; brand and rating on one line; offer-price block; **delivery card with the estimated date**; policy chips; offers card; highlights, description, dosage, **foldable Specifications** (collapsed by default, "12 details" and a chevron), Q&A; **ratings summary with a per-star breakdown** and reviews; sticky **Add to Cart / Buy now** (Buy now goes straight to the address step). |
+| **Cart** | 40 dp stepper, delete, "Move to wishlist", "Only N left" and a rating on each line, stock-limit message, a coupon row with an offers sheet (minimum-spend hints and a typed code), a **price-details card** (items, coupon discount, you pay, "You save ₹X"), and a banner when a price or stock changed. The cart is saved on the device and **re-checked against the server whenever it opens**; an applied coupon is re-checked after every cart change instead of silently dropping. |
+| **Checkout (three steps)** | Step indicator "Address, Payment, Review". **Address:** the last three addresses are remembered and preselected, a new-address form with a 6-digit pincode check, remove a saved address. **Payment:** Godhan Wallet with its balance and a "not enough balance" warning, a coins switch (each coin is ₹1), UPI and card shown as "Coming soon". **Review:** items, address and payment each with an Edit link, price details, "Place order" with double-tap protection. |
+| **After the order** | Confirmation with order id, items, address, how it was paid and savings, with "Track order" and "Continue shopping". Orders list opens an **order detail** screen (status, items, address, payment) with "Order these again". |
+
+### Checked on a phone, and what was not
+
+- **Seen working on a real phone:** the new navigation and header, shop home, product page (including the delivery date and the foldable specifications), cart, address, payment and review steps, the coupon sheet's empty state, clearing the cart.
+- **Not seen on a phone:** the confirmation and order-detail screens (no order was placed, because that would charge the real wallet and there is no cancel or refund yet), the offers banner and coupon list (no coupons were running), "Buy again" (no past orders), the ratings summary and reviews (the test product has none). Their code compiles.
+- **Languages:** the English layout was checked; the Hindi, Gujarati and Marathi bottom-bar labels were not.
+
+### Where this differs from the mockup, and why
+
+| Mockup | App today | Reason |
+|---|---|---|
+| Delivery fee row and free-delivery progress bar in the cart | Not shown | The server does not charge a delivery fee yet. Showing one would make the screen and the charge disagree. Comes with listing spec Phase 3. |
+| Name, phone and landmark on the address | Village, district, state, pincode only | The order stores only those four fields. |
+| Pincode lookup and "we do not deliver here" | Format check only | Needs the served-pincode list and a lookup endpoint (section 7). |
+| Pincode check and "Other sizes" on the product page | Not shown | Need the lookup endpoint and variants (listing spec Phase 3). |
+| UPI and card payment | Shown as "Coming soon" | Needs the Razorpay integration (section 6). |
+| Timeline Placed, Packed, Shipped, Out for delivery, Delivered | Placed, then Delivered or Cancelled | The server only has `paid`, `delivered`, `cancelled`, `pending`. Finer steps are not faked. |
+| Cancel order | Not offered | No cancel-and-refund endpoint yet. |
+| "Use max" coins chip | A switch that uses the maximum | Same result, simpler control. |
+| Foldable Specifications | Added after review | New request from the owner; folded by default. |
+
+### Follow-ups found while building
+
+1. The product page still shows a **"Cancel before shipping" chip** from the product flag, but the app has no cancel action yet. Hide it until cancel exists, or build cancel (Phase B).
+2. The order-detail timeline and the "Packing and shipping updates are coming soon" note should be replaced when courier status arrives.
+3. Re-check the bottom-bar labels in Hindi, Gujarati and Marathi on a device.
+4. A test order should be placed once, on a test wallet, to see the confirmation and order-detail screens; there is no refund path yet.
+5. Phase B items still to build: delivery fee and GST rows, saved addresses on the server and the served-pincode check, order status history and cancel with refund, idempotency key, atomic charge and stock, SMS and push status messages.
+
+---
+
+## 12. Sources and limits
 
 **Primary**
 - Baymard Institute, [The Checkout UX Guide](https://baymard.com/blog/checkout-flow-ux-optimization)
