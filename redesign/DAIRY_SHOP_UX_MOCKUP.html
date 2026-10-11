@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Godhan Dairy Shop — Redesign Mockup</title>
+<style>
+  :root {
+    --paper:#F4F5F1; --card:#FFFFFF; --ink:#14180F; --ink-2:#3D4437; --ink-3:#6C7365;
+    --rule:#E2E4DC; --green:#2E7D32; --green-deep:#005005; --green-wash:#EDF5EE;
+    --amber:#FFA000; --amber-wash:#FFF6E3; --amber-ink:#8A5B00;
+    --red:#D32F2F; --red-wash:#FDEDED; --blue:#1565C0; --blue-wash:#E8F0FA;
+    --shadow:0 1px 3px rgba(0,0,0,.12); --on-green:#FFFFFF;
+    --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#0F120E; --card:#171B15; --ink:#EDEFE9; --ink-2:#C2C7BA; --ink-3:#8B9182;
+      --rule:#2A2F26; --green:#8BD68C; --green-deep:#B6E5B7; --green-wash:#1B2A1C;
+      --amber:#FFC14D; --amber-wash:#2E2410; --amber-ink:#FFC14D;
+      --red:#F2756F; --red-wash:#2E1817; --blue:#6BA8E8; --blue-wash:#141F2B;
+      --shadow:0 1px 3px rgba(0,0,0,.5); --on-green:#0B1A0C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0F120E; --card:#171B15; --ink:#EDEFE9; --ink-2:#C2C7BA; --ink-3:#8B9182;
+    --rule:#2A2F26; --green:#8BD68C; --green-deep:#B6E5B7; --green-wash:#1B2A1C;
+    --amber:#FFC14D; --amber-wash:#2E2410; --amber-ink:#FFC14D;
+    --red:#F2756F; --red-wash:#2E1817; --blue:#6BA8E8; --blue-wash:#141F2B;
+    --shadow:0 1px 3px rgba(0,0,0,.5); --on-green:#0B1A0C;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font); }
+  .layout { display:flex; gap:28px; max-width:980px; margin:0 auto; padding:24px 16px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+  .side { width:260px; }
+  .side h1 { font-size:20px; margin:0 0 4px; color:var(--green-deep); }
+  .side p { color:var(--ink-3); font-size:13.5px; line-height:1.5; margin:0 0 14px; }
+  .nav { display:flex; flex-direction:column; gap:6px; }
+  .nav button, .theme { text-align:left; padding:9px 12px; border:1px solid var(--rule); background:var(--card); color:var(--ink); border-radius:10px; cursor:pointer; font:inherit; font-size:14px; }
+  .nav button.on { border-color:var(--green); background:var(--green-wash); color:var(--green-deep); font-weight:600; }
+  .theme { margin-top:12px; width:100%; text-align:center; }
+  .notes { margin-top:16px; font-size:12.5px; color:var(--ink-3); line-height:1.5; border-top:1px solid var(--rule); padding-top:12px; }
+
+  .phone { width:390px; height:780px; background:var(--paper); border:10px solid #1b1f18; border-radius:36px; overflow:hidden; position:relative; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+  .status { height:26px; flex:none; display:flex; justify-content:space-between; align-items:center; padding:0 18px; font-size:12px; color:var(--ink-2); background:var(--card); }
+  .screen { display:none; flex:1; min-height:0; flex-direction:column; }
+  .screen.on { display:flex; }
+  .body { flex:1; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+  .appbar { flex:none; background:var(--card); border-bottom:1px solid var(--rule); padding:10px 12px; display:flex; align-items:center; gap:10px; }
+  .appbar .title { font-weight:700; font-size:16px; flex:1; }
+  .appbar .step { font-size:12px; color:var(--ink-3); }
+  .back { background:none; border:none; font-size:22px; color:var(--ink); cursor:pointer; padding:0 4px; }
+  .bottom { flex:none; background:var(--card); border-top:1px solid var(--rule); padding:10px 12px; display:flex; gap:10px; align-items:center; }
+  .tabbar { flex:none; display:flex; background:var(--card); border-top:1px solid var(--rule); }
+  .tabbar div { flex:1; text-align:center; padding:8px 0 6px; font-size:11px; color:var(--ink-3); cursor:pointer; }
+  .tabbar div b { display:block; font-size:18px; font-weight:400; }
+  .tabbar div.on { color:var(--green-deep); font-weight:600; }
+
+  .card { background:var(--card); border-radius:12px; padding:12px; box-shadow:var(--shadow); }
+  .row { display:flex; align-items:center; gap:10px; }
+  .grow { flex:1; min-width:0; }
+  .muted { color:var(--ink-3); font-size:12.5px; }
+  .small { font-size:12.5px; }
+  h3 { margin:0 0 6px; font-size:14.5px; }
+  .btn { border:none; border-radius:12px; padding:13px 16px; font:inherit; font-weight:700; cursor:pointer; background:var(--green); color:var(--on-green); font-size:15px; }
+  .btn.block { flex:1; }
+  .btn.ghost { background:transparent; border:1px solid var(--green); color:var(--green-deep); }
+  .btn.sm { padding:7px 12px; font-size:13px; border-radius:9px; }
+  .chip { display:inline-block; padding:4px 10px; border-radius:16px; background:var(--green-wash); color:var(--green-deep); font-size:12px; font-weight:600; white-space:nowrap; }
+  .chip.amber { background:var(--amber-wash); color:var(--amber-ink); }
+  .chip.red { background:var(--red-wash); color:var(--red); }
+  .chip.on { background:var(--green); color:var(--on-green); }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; }
+  .badge { background:var(--green); color:var(--on-green); font-size:11px; padding:2px 6px; border-radius:4px; font-weight:600; }
+  .badge.blue { background:var(--blue); } .badge.red { background:var(--red); }
+  .img { background:linear-gradient(135deg,#1f7a43,#2E7D32); color:#fff; border-radius:10px; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:700; font-size:12px; padding:6px; }
+  .img.amber { background:linear-gradient(135deg,#e0a100,#FFA000); }
+  .img.blue { background:linear-gradient(135deg,#1565C0,#1E88E5); }
+  .price { font-weight:800; color:var(--green-deep); font-size:18px; }
+  .strike { text-decoration:line-through; color:var(--ink-3); font-size:13px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pcard { background:var(--card); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; cursor:pointer; }
+  .pcard .img { border-radius:0; height:96px; position:relative; }
+  .pcard .in { padding:8px 10px 10px; }
+  .pcard .tags { position:absolute; top:6px; left:6px; display:flex; flex-direction:column; gap:4px; align-items:flex-start; }
+  .search { background:var(--card); border:1px solid var(--rule); border-radius:12px; padding:10px 12px; color:var(--ink-3); font-size:14px; }
+  .tiles { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; text-align:center; font-size:11px; }
+  .tiles div { cursor:pointer; } .tiles b { display:block; background:var(--green-wash); border-radius:12px; font-size:20px; font-weight:400; padding:8px 0; margin-bottom:3px; }
+  .stepper { display:inline-flex; align-items:center; gap:10px; border:1px solid var(--rule); border-radius:10px; padding:2px 8px; }
+  .stepper button { border:none; background:none; font-size:18px; color:var(--green-deep); cursor:pointer; padding:2px 6px; }
+  hr { border:none; border-top:1px solid var(--rule); margin:8px 0; }
+  .kv { display:flex; justify-content:space-between; padding:3px 0; font-size:14px; }
+  .kv.total { font-weight:800; font-size:16px; border-top:1px dashed var(--rule); margin-top:6px; padding-top:8px; }
+  .bar { height:7px; border-radius:4px; background:var(--rule); overflow:hidden; margin:6px 0 2px; }
+  .bar span { display:block; height:100%; background:var(--green); }
+  .banner { border-radius:10px; padding:9px 11px; font-size:13px; }
+  .banner.warn { background:var(--amber-wash); color:var(--amber-ink); }
+  .banner.info { background:var(--blue-wash); color:var(--blue); }
+  .radio { display:flex; gap:10px; align-items:flex-start; padding:10px; border:1.5px solid var(--rule); border-radius:12px; cursor:pointer; background:var(--card); }
+  .radio.on { border-color:var(--green); background:var(--green-wash); }
+  .radio .dot { width:18px; height:18px; border-radius:50%; border:2px solid var(--ink-3); flex:none; margin-top:2px; }
+  .radio.on .dot { border-color:var(--green); background:radial-gradient(var(--green) 45%, transparent 50%); }
+  .field { display:flex; flex-direction:column; gap:3px; font-size:12.5px; color:var(--ink-3); }
+  .field input { border:1px solid var(--rule); background:var(--card); color:var(--ink); border-radius:9px; padding:10px; font:inherit; font-size:15px; }
+  .ok { color:var(--green-deep); font-size:12.5px; font-weight:600; }
+  .tl { position:relative; padding-left:26px; }
+  .tl .step { position:relative; padding-bottom:18px; }
+  .tl .step::before { content:""; position:absolute; left:-20px; top:14px; bottom:-4px; width:2px; background:var(--rule); }
+  .tl .step:last-child::before { display:none; }
+  .tl .step i { position:absolute; left:-26px; top:2px; width:14px; height:14px; border-radius:50%; border:2px solid var(--rule); background:var(--card); }
+  .tl .step.done i { background:var(--green); border-color:var(--green); }
+  .tl .step.now i { border-color:var(--green); box-shadow:0 0 0 4px var(--green-wash); }
+  .check { width:64px; height:64px; border-radius:50%; background:var(--green); color:var(--on-green); font-size:34px; display:flex; align-items:center; justify-content:center; margin:6px auto; }
+  .center { text-align:center; }
+  .hide { display:none !important; }
+  .toast { position:absolute; left:50%; bottom:78px; transform:translateX(-50%); background:#222; color:#fff; padding:9px 14px; border-radius:20px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; white-space:nowrap; }
+  .toast.on { opacity:1; }
+  @media (max-width:640px) { .side { width:100%; } .nav { flex-direction:row; flex-wrap:wrap; } .phone { width:100%; max-width:390px; } }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div class="side">
+    <h1>Dairy Shop redesign</h1>
+    <p>Clickable mockup of the proposed look and the new checkout flow. Pick a screen, or tap through the app. Figures use the live test product.</p>
+    <div class="nav" id="nav"></div>
+    <button class="theme" id="theme">Toggle light / dark</button>
+    <div class="notes">
+      <b>Sample figures:</b> Godhan Test Dairy Feed 25 kg ₹1,150 (MRP ₹1,500, 23% off) + Mineral Mix 5 kg ₹249 (MRP ₹299) = ₹1,399. Coupon TEN (10%) = −₹140. Free delivery above ₹999, fee ₹49 (Shop Settings). Served pincode: 231001. You pay ₹1,259.<br><br>
+      Mockup only: no real payments or data. Cash on delivery is not offered for now. Wallet balance, coin cap and delivery dates are examples.
+    </div>
+  </div>
+
+  <div class="phone" id="phone">
+    <div class="status"><span>9:41</span><span>▂▄▆ 5G 🔋</span></div>
+
+    <!-- 1. SHOP HOME -->
+    <section class="screen on" id="home">
+      <div class="body">
+        <div class="row"><div class="search grow">🔍 Search feed, minerals, brands…</div><div style="font-size:22px;cursor:pointer" data-go="cart">🛒<sup class="badge red cartcount">2</sup></div></div>
+        <div class="tiles">
+          <div data-go="list"><b>🌾</b>Feed</div><div data-go="list"><b>💊</b>Supple-<br>ments</div><div data-go="list"><b>🩺</b>OTC<br>health</div><div data-go="list"><b>🥛</b>Equip-<br>ment</div><div data-go="list"><b>🐄</b>Calf<br>care</div>
+        </div>
+        <div class="card" style="background:var(--green);color:var(--on-green)">
+          <div class="small">Offers for you</div>
+          <div style="font-size:18px;font-weight:800">10% off · code TEN</div>
+          <div class="small">On dairy shop orders. Applies automatically at checkout.</div>
+        </div>
+        <div class="row small"><span class="chip">✔ Godhan Verified</span><span class="chip">Vet-reviewed</span><span class="chip">Delivery in 3 days</span></div>
+        <div class="row"><h3 class="grow" style="margin:0">Buy again</h3><span class="muted">See all</span></div>
+        <div class="grid2">
+          <div class="pcard" data-go="product"><div class="img">GODHAN TEST FEED 25 kg</div><div class="in"><div class="small"><b>Godhan Test Dairy Feed 25 kg</b></div><div><span class="price" style="font-size:15px">₹1150</span> <span class="strike">₹1500</span></div></div></div>
+          <div class="pcard" data-go="product"><div class="img amber">Mineral Mix 5 kg</div><div class="in"><div class="small"><b>Mineral Mix 5 kg</b></div><div><span class="price" style="font-size:15px">₹249</span> <span class="strike">₹299</span></div></div></div>
+        </div>
+        <div class="row"><h3 class="grow" style="margin:0">Recently viewed</h3></div>
+        <div class="chips"><span class="chip">Calf Starter 20 kg</span><span class="chip">Teat Dip 5 L</span><span class="chip">Chaff Cutter 2HP</span></div>
+      </div>
+      <div class="tabbar"><div class="on"><b>🏠</b>Shop</div><div data-go="list"><b>🔎</b>Browse</div><div data-go="orders"><b>🧾</b>Orders</div><div data-go="cart"><b>🛒</b>Cart</div></div>
+    </section>
+
+    <!-- 2. LISTING -->
+    <section class="screen" id="list">
+      <div class="appbar"><button class="back" data-go="home">‹</button><div class="title">Feed &amp; fodder</div><div style="font-size:20px" data-go="cart">🛒</div></div>
+      <div class="body">
+        <div class="chips"><span class="chip on">All</span><span class="chip">Feed</span><span class="chip">Supplements</span><span class="chip">OTC health</span><span class="chip">Equipment</span></div>
+        <div class="row small"><span class="muted grow">12 products</span><span class="chip">⇅ Relevance</span><span class="chip">☰ Filters<sup> 1</sup></span></div>
+        <div class="chips"><span class="chip">Pellet ✕</span><span class="chip">Cow</span><span class="chip">4★ &amp; above</span><span class="chip">In stock</span></div>
+        <div class="grid2">
+          <div class="pcard" data-go="product"><div class="img"><div class="tags"><span class="badge">23% off</span><span class="badge blue">New</span></div>GODHAN TEST FEED 25 kg</div><div class="in"><div class="small"><b>Godhan Test Dairy Feed 25 kg</b></div><div class="muted">Godhan Test · ₹46/kg</div><div class="muted">★ 4.2 (18)</div><div><span class="price" style="font-size:16px">₹1150</span> <span class="strike">₹1500</span></div><div class="muted">Delivery in 3 days</div><button class="btn sm block" style="width:100%;margin-top:6px" data-add="feed">Add to Cart</button></div></div>
+          <div class="pcard" data-go="product"><div class="img amber"><div class="tags"><span class="badge">17% off</span><span class="badge red">Only 4 left</span></div>Mineral Mix 5 kg</div><div class="in"><div class="small"><b>Mineral Mix 5 kg</b></div><div class="muted">VetCo · ₹50/kg</div><div class="muted">★ 4.6 (41)</div><div><span class="price" style="font-size:16px">₹249</span> <span class="strike">₹299</span></div><div class="muted">Delivery in 2 days</div><button class="btn sm block" style="width:100%;margin-top:6px" data-add="mix">Add to Cart</button></div></div>
+          <div class="pcard"><div class="img blue"><div class="tags"><span class="badge red">Out of stock</span></div>Calf Starter 20 kg</div><div class="in"><div class="small"><b>Calf Starter 20 kg</b></div><div><span class="price" style="font-size:16px">₹900</span></div><button class="btn sm" disabled style="width:100%;margin-top:6px;opacity:.5">Sold out</button></div></div>
+        </div>
+      </div>
+      <div class="tabbar"><div data-go="home"><b>🏠</b>Shop</div><div class="on"><b>🔎</b>Browse</div><div data-go="orders"><b>🧾</b>Orders</div><div data-go="cart"><b>🛒</b>Cart</div></div>
+    </section>
+
+    <!-- 3. PRODUCT -->
+    <section class="screen" id="product">
+      <div class="appbar"><button class="back" data-go="list">‹</button><div class="title">Godhan Test Dairy Feed 25 kg</div><div style="font-size:20px">♡</div></div>
+      <div class="body">
+        <div class="img" style="height:190px;font-size:22px">GODHAN TEST FEED<br>25 kg bag</div>
+        <div class="muted">Feed &amp; fodder › Compound feed</div>
+        <div class="row"><span class="badge">23% OFF</span><span class="chip amber">Only a few left</span></div>
+        <div><b style="font-size:19px">Godhan Test Dairy Feed 25 kg</b><div class="muted">Godhan Test · ★ 4.2 (18 reviews)</div></div>
+        <div><div class="small" style="color:var(--red);font-weight:700">Offer price · ends 20 Oct</div><span class="price" style="font-size:28px">₹1150</span> <span class="muted">/bag</span> <span class="strike">₹1500</span> <b class="ok">23% off</b><div class="muted">Inclusive of all taxes</div></div>
+        <div class="card">
+          <div class="row"><div class="grow"><b>Delivery</b><div class="muted">Enter pincode to check</div></div><div class="field" style="width:120px"><input value="231001"></div></div>
+          <div class="ok" style="margin-top:6px">✔ Delivery in about 3 days · Free above ₹999</div>
+        </div>
+        <div class="row" style="flex-wrap:wrap"><span class="chip">No returns</span><span class="chip">Cancel before shipping</span></div>
+        <div class="card"><h3>Offers</h3><div class="small">🏷 <b>TEN</b> — 10% off, up to ₹300 · <span class="ok">Applies at checkout</span></div></div>
+        <div class="card"><h3>Highlights</h3><div class="small">• High-protein ration for lactating cows and buffaloes<br>• Pelleted for less wastage<br>• Supports steady milk yield</div></div>
+        <div class="card"><h3>Specifications</h3><div class="kv small"><span class="muted">Crude protein</span><span>22% min</span></div><div class="kv small"><span class="muted">Form</span><span>Pellet</span></div><div class="kv small"><span class="muted">Shelf life</span><span>6 months</span></div></div>
+        <div class="card"><h3>Other sizes</h3><div class="chips"><span class="chip">10 kg</span><span class="chip on">25 kg</span><span class="chip">50 kg</span></div></div>
+      </div>
+      <div class="bottom"><button class="btn ghost block" data-add="feed">Add to Cart</button><button class="btn block" data-buy="1">Buy now</button></div>
+    </section>
+
+    <!-- 4. CART -->
+    <section class="screen" id="cart">
+      <div class="appbar"><button class="back" data-go="list">‹</button><div class="title">Cart (<span class="cartcount">2</span>)</div><span class="muted" id="clear">Clear</span></div>
+      <div class="body">
+        <div class="banner warn" id="pricewarn">⚠ Price of “Mineral Mix 5 kg” changed: ₹259 → ₹249 <b style="float:right;cursor:pointer" id="gotit">Got it</b></div>
+        <div class="card" id="line-feed">
+          <div class="row"><div class="img" style="width:62px;height:62px">FEED</div><div class="grow"><b class="small">Godhan Test Dairy Feed 25 kg</b><div class="muted">25 kg bag · ★ 4.2 (18)</div><div><b>₹1,150</b> <span class="strike">₹1,500</span></div></div></div>
+          <div class="row" style="margin-top:8px"><div class="stepper"><button>–</button>1<button>+</button></div><span class="muted grow" style="text-align:right">Move to wishlist</span><span style="cursor:pointer" data-del="feed">🗑</span></div>
+        </div>
+        <div class="card" id="line-mix">
+          <div class="row"><div class="img amber" style="width:62px;height:62px">MIX</div><div class="grow"><b class="small">Mineral Mix 5 kg</b><div class="muted">VetCo · ★ 4.6 (41) · Only 4 left</div><div><b>₹249</b> <span class="strike">₹299</span></div></div></div>
+          <div class="row" style="margin-top:8px"><div class="stepper"><button>–</button>1<button>+</button></div><span class="muted grow" style="text-align:right">Move to wishlist</span><span style="cursor:pointer" data-del="mix">🗑</span></div>
+        </div>
+        <div class="card row" id="offerrow" style="cursor:pointer"><span style="font-size:20px">🏷</span><div class="grow"><b class="small">Coupon <span id="offername">TEN applied</span></b><div class="muted" id="offerhint">You save ₹140</div></div><span class="muted" id="offertoggle">Remove</span></div>
+        <div class="card">
+          <h3>Price details</h3>
+          <div class="kv"><span>Items (<span class="cartcount">2</span>)</span><span id="p-items">₹1,399</span></div>
+          <div class="kv"><span>Discount</span><span id="p-disc" class="ok">–₹140</span></div>
+          <div class="kv"><span>Delivery</span><span id="p-del" class="ok">Free</span></div>
+          <div class="bar"><span id="p-bar" style="width:100%"></span></div>
+          <div class="muted" id="p-bartext">You unlocked free delivery (above ₹999)</div>
+          <div class="muted">GST is included in the prices</div>
+          <div class="kv total"><span>You pay</span><span id="p-total">₹1,259</span></div>
+          <div class="ok" id="p-save">You save ₹540 on this order</div>
+        </div>
+      </div>
+      <div class="bottom"><button class="btn block" data-go="address">Continue to Address · <span id="cta-total">₹1,259</span></button></div>
+    </section>
+
+    <!-- 5. ADDRESS -->
+    <section class="screen" id="address">
+      <div class="appbar"><button class="back" data-go="cart">‹</button><div class="title">Delivery address</div><span class="step">Step 1 of 3</span></div>
+      <div class="body">
+        <div class="radio on" data-pick="addr"><span class="dot"></span><div class="grow"><b>Home · Shashank Singh</b><div class="muted">Village Kuri, Mirzapur, Uttar Pradesh 231001<br>📞 98•••••12</div></div><span class="muted">Edit</span></div>
+        <div class="radio" data-pick="addr"><span class="dot"></span><div class="grow"><b>Dairy farm gate</b><div class="muted">Near canal road, Mirzapur, Uttar Pradesh 231001</div></div><span class="muted">Edit</span></div>
+        <div class="card">
+          <h3>+ Add new address</h3>
+          <div class="field">Full name<input placeholder="Name"></div>
+          <div class="field" style="margin-top:6px">Phone<input placeholder="10-digit mobile" inputmode="numeric"></div>
+          <div class="field" style="margin-top:6px">Pincode<input id="pin" value="231001" inputmode="numeric"></div>
+          <div class="ok" id="pinres">✔ Mirzapur, Uttar Pradesh · delivery available</div>
+          <div class="field" style="margin-top:6px">Village / area<input placeholder="Village or area"></div>
+          <div class="field" style="margin-top:6px">Landmark (optional)<input placeholder="Near…"></div>
+          <label class="small" style="display:block;margin-top:8px"><input type="checkbox" checked> Save as default</label>
+        </div>
+      </div>
+      <div class="bottom"><button class="btn block" data-go="payment">Continue to Payment</button></div>
+    </section>
+
+    <!-- 6. PAYMENT -->
+    <section class="screen" id="payment">
+      <div class="appbar"><button class="back" data-go="address">‹</button><div class="title">Payment</div><span class="step">Step 2 of 3</span></div>
+      <div class="body">
+        <div class="radio on" data-method="wallet"><span class="dot"></span><div class="grow"><b>Godhan Wallet</b><div class="muted">Balance ₹2,450 · enough for this order</div></div><span class="chip">+ Add money</span></div>
+        <div class="radio" data-method="upi"><span class="dot"></span><div class="grow"><b>UPI</b><div class="muted">GPay, PhonePe, Paytm, BHIM</div></div></div>
+        <div class="radio" data-method="card"><span class="dot"></span><div class="grow"><b>Credit / debit card</b><div class="muted">Visa, Mastercard, RuPay</div></div></div>
+        <div class="card hide" id="f-upi"><div class="field">UPI ID<input placeholder="name@bank"></div><div class="muted" style="margin-top:6px">You will approve the payment in your UPI app.</div></div>
+        <div class="card hide" id="f-card"><div class="field">Card number<input placeholder="0000 0000 0000 0000" inputmode="numeric"></div><div class="row" style="margin-top:6px"><div class="field grow">Expiry<input placeholder="MM / YY"></div><div class="field grow">CVV<input placeholder="•••"></div></div><div class="muted" style="margin-top:6px">Card details are entered in the secure payment sheet.</div></div>
+        <div class="card">
+          <label class="row small"><input type="checkbox" id="coins" checked><span class="grow"><b>Use 120 coins (–₹120)</b><br><span class="muted">Up to 20% of the amount can be paid with coins</span></span><span class="chip">Use max</span></label>
+        </div>
+        <div class="card">
+          <div class="kv"><span>Order total</span><span>₹1,259</span></div>
+          <div class="kv"><span>Coins</span><span id="pay-coins" class="ok">–₹120</span></div>
+          <div class="kv total"><span id="pay-label">Pay from wallet</span><span id="pay-amt">₹1,139</span></div>
+        </div>
+      </div>
+      <div class="bottom"><button class="btn block" data-go="review">Review order</button></div>
+    </section>
+
+    <!-- 7. REVIEW -->
+    <section class="screen" id="review">
+      <div class="appbar"><button class="back" data-go="payment">‹</button><div class="title">Review order</div><span class="step">Step 3 of 3</span></div>
+      <div class="body">
+        <div class="card"><div class="row"><h3 class="grow">Items (2)</h3><span class="muted" data-go="cart" style="cursor:pointer">Edit</span></div><div class="kv small"><span>Godhan Test Dairy Feed 25 kg × 1</span><span>₹1,150</span></div><div class="kv small"><span>Mineral Mix 5 kg × 1</span><span>₹249</span></div></div>
+        <div class="card"><div class="row"><h3 class="grow">Deliver to</h3><span class="muted" data-go="address" style="cursor:pointer">Edit</span></div><div class="small">Shashank Singh<br>Village Kuri, Mirzapur, Uttar Pradesh 231001<br>Delivery in about 3 days (Wed 14 Oct)</div></div>
+        <div class="card"><div class="row"><h3 class="grow">Payment</h3><span class="muted" data-go="payment" style="cursor:pointer">Edit</span></div><div class="small" id="rv-pay">Godhan Wallet ₹1,139 + 120 coins</div></div>
+        <div class="card"><div class="kv"><span>Items</span><span>₹1,399</span></div><div class="kv"><span>Discount (TEN)</span><span class="ok">–₹140</span></div><div class="kv"><span>Delivery</span><span class="ok">Free</span></div><div class="kv total"><span>Total</span><span>₹1,259</span></div></div>
+        <div class="muted center small">No returns · Cancel before shipping · GST included</div>
+      </div>
+      <div class="bottom"><button class="btn block" id="place">Place order · ₹1,259</button></div>
+    </section>
+
+    <!-- 8. CONFIRMATION -->
+    <section class="screen" id="confirm">
+      <div class="body center" style="justify-content:center">
+        <div class="check">✔</div>
+        <h2 style="margin:0">Order placed</h2>
+        <div class="muted">Order #GD-20261011-0042</div>
+        <div class="ok">Delivery in about 3 days · Wed 14 Oct</div>
+        <div class="card" style="text-align:left">
+          <div class="kv small"><span>Godhan Test Dairy Feed 25 kg × 1</span><span>₹1,150</span></div>
+          <div class="kv small"><span>Mineral Mix 5 kg × 1</span><span>₹249</span></div>
+          <hr><div class="small">Deliver to: Village Kuri, Mirzapur 231001</div>
+          <div class="small" id="cf-pay">Paid: Wallet ₹1,139 + 120 coins</div>
+          <div class="ok small">You saved ₹540</div>
+        </div>
+        <div class="row"><button class="btn block" data-go="track">Track order</button><button class="btn ghost block" data-go="home">Continue shopping</button></div>
+      </div>
+    </section>
+
+    <!-- 9. ORDERS -->
+    <section class="screen" id="orders">
+      <div class="appbar"><button class="back" data-go="home">‹</button><div class="title">My orders</div></div>
+      <div class="body">
+        <div class="card" data-go="track" style="cursor:pointer"><div class="row"><div class="img" style="width:54px;height:54px">FEED</div><div class="grow"><b class="small">Order #GD-20261011-0042</b><div class="muted">Godhan Test Dairy Feed + 1 more · ₹1,259</div></div><span class="chip amber">Packed</span></div><div class="muted" style="margin-top:6px">Arriving Wed 14 Oct</div></div>
+        <div class="card" style="cursor:pointer"><div class="row"><div class="img blue" style="width:54px;height:54px">CALF</div><div class="grow"><b class="small">Order #GD-20260929-0017</b><div class="muted">Calf Starter 20 kg · ₹900</div></div><span class="chip">Delivered</span></div><div class="row" style="margin-top:8px"><button class="btn ghost sm">Reorder</button><button class="btn ghost sm">Write a review</button></div></div>
+      </div>
+      <div class="tabbar"><div data-go="home"><b>🏠</b>Shop</div><div data-go="list"><b>🔎</b>Browse</div><div class="on"><b>🧾</b>Orders</div><div data-go="cart"><b>🛒</b>Cart</div></div>
+    </section>
+
+    <!-- 10. TRACKING -->
+    <section class="screen" id="track">
+      <div class="appbar"><button class="back" data-go="orders">‹</button><div class="title">Order #GD-20261011-0042</div></div>
+      <div class="body">
+        <div class="card">
+          <div class="row"><div class="grow"><b>Arriving Wed 14 Oct</b><div class="muted">Placed 11 Oct, 9:41 am</div></div><span class="chip amber">Packed</span></div>
+        </div>
+        <div class="card tl">
+          <div class="step done"><i></i><b>Placed</b><div class="muted">11 Oct, 9:41 am</div></div>
+          <div class="step now done"><i></i><b>Packed</b><div class="muted">11 Oct, 6:40 pm</div></div>
+          <div class="step"><i></i><b>Shipped</b><div class="muted">Expected 12 Oct</div></div>
+          <div class="step"><i></i><b>Out for delivery</b><div class="muted">Expected 14 Oct</div></div>
+          <div class="step"><i></i><b>Delivered</b><div class="muted">Expected 14 Oct</div></div>
+        </div>
+        <div class="card"><div class="kv small"><span>Godhan Test Dairy Feed 25 kg × 1</span><span>₹1,150</span></div><div class="kv small"><span>Mineral Mix 5 kg × 1</span><span>₹249</span></div><div class="kv small"><span>Discount (TEN)</span><span class="ok">–₹140</span></div><div class="kv total"><span>Total</span><span>₹1,259</span></div><div class="muted">Paid: Wallet ₹1,139 + 120 coins</div></div>
+        <div class="row"><button class="btn ghost block sm" id="cancel">Cancel order</button><button class="btn ghost block sm">Reorder</button><button class="btn ghost block sm">Invoice</button></div>
+        <div class="muted small" id="cancelnote">You can cancel until the order is shipped. A refund goes back to the wallet and coins.</div>
+      </div>
+    </section>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var screens = [
+    ["home","Shop home"],["list","Listing with filters"],["product","Product page"],["cart","Cart + price details"],
+    ["address","Address (step 1)"],["payment","Payment (step 2)"],["review","Review (step 3)"],
+    ["confirm","Confirmation"],["orders","Orders list"],["track","Order tracking"]
+  ];
+  var nav = document.getElementById("nav");
+  var toastEl = document.getElementById("toast");
+  var state = { feed: true, mix: true, offer: true, coins: true, method: "wallet", warned: true };
+
+  function toast(t) { toastEl.textContent = t; toastEl.classList.add("on"); setTimeout(function () { toastEl.classList.remove("on"); }, 1400); }
+  function show(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.toggle("on", s.id === id); });
+    nav.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.dataset.id === id); });
+    var body = document.querySelector("#" + id + " .body"); if (body) body.scrollTop = 0;
+  }
+  screens.forEach(function (s) {
+    var b = document.createElement("button"); b.textContent = s[1]; b.dataset.id = s[0];
+    b.onclick = function () { show(s[0]); }; nav.appendChild(b);
+  });
+
+  var money = function (n) { return "₹" + n.toLocaleString("en-IN"); };
+
+  function recalc() {
+    var items = (state.feed ? 1150 : 0) + (state.mix ? 249 : 0);
+    var count = (state.feed ? 1 : 0) + (state.mix ? 1 : 0);
+    var disc = state.offer ? Math.min(300, Math.round(items * 0.10)) : 0;
+    var after = items - disc;
+    var free = after >= 999 || items === 0;
+    var fee = free ? 0 : 49;
+    var total = after + fee;
+    var mrp = (state.feed ? 1500 : 0) + (state.mix ? 299 : 0);
+    document.querySelectorAll(".cartcount").forEach(function (e) { e.textContent = count; });
+    document.getElementById("p-items").textContent = money(items);
+    document.getElementById("p-disc").textContent = disc ? "–" + money(disc) : "–";
+    var del = document.getElementById("p-del"); del.textContent = free ? "Free" : money(fee); del.className = free ? "ok" : "";
+    var pct = Math.min(100, Math.round(after / 999 * 100));
+    document.getElementById("p-bar").style.width = pct + "%";
+    document.getElementById("p-bartext").textContent = free ? "You unlocked free delivery (above ₹999)" : "Add " + money(999 - after) + " more for free delivery";
+    document.getElementById("p-total").textContent = money(total);
+    document.getElementById("cta-total").textContent = money(total);
+    document.getElementById("p-save").textContent = "You save " + money(mrp - total) + " on this order";
+    document.getElementById("offername").textContent = state.offer ? "TEN applied" : "— tap to apply TEN";
+    document.getElementById("offerhint").textContent = state.offer ? "You save " + money(disc) : "10% off, up to ₹300";
+    document.getElementById("offertoggle").textContent = state.offer ? "Remove" : "Apply";
+    document.getElementById("line-feed").classList.toggle("hide", !state.feed);
+    document.getElementById("line-mix").classList.toggle("hide", !state.mix);
+    recalcPay(total);
+  }
+
+  function recalcPay(total) {
+    var coins = state.coins ? 120 : 0;
+    var due = total - coins;
+    document.getElementById("pay-coins").textContent = coins ? "–" + money(coins) : "–";
+    var labels = { wallet: "Pay from wallet", upi: "Pay with UPI", card: "Pay by card" };
+    document.getElementById("pay-label").textContent = labels[state.method];
+    document.getElementById("pay-amt").textContent = money(due);
+    var words = { wallet: "Godhan Wallet", upi: "UPI", card: "Card" };
+    var line = words[state.method] + " " + money(due) + (coins ? " + 120 coins" : "");
+    document.getElementById("rv-pay").textContent = line;
+    document.getElementById("cf-pay").textContent = "Paid: " + line;
+    document.getElementById("place").textContent = "Place order · " + money(total);
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    var go = t.closest("[data-go]");
+    var add = t.closest("[data-add]");
+    var del = t.closest("[data-del]");
+    var method = t.closest("[data-method]");
+    var pick = t.closest("[data-pick]");
+    if (add) { e.stopPropagation(); state[add.dataset.add] = true; recalc(); toast("Added to cart · View cart"); return; }
+    if (t.closest("[data-buy]")) { state.feed = true; recalc(); show("address"); return; }
+    if (del) { state[del.dataset.del] = false; recalc(); toast("Removed from cart"); return; }
+    if (method) {
+      state.method = method.dataset.method;
+      document.querySelectorAll("[data-method]").forEach(function (r) { r.classList.toggle("on", r === method); });
+      document.getElementById("f-upi").classList.toggle("hide", state.method !== "upi");
+      document.getElementById("f-card").classList.toggle("hide", state.method !== "card");
+      recalc(); return;
+    }
+    if (pick) { document.querySelectorAll("[data-pick]").forEach(function (r) { r.classList.toggle("on", r === pick); }); return; }
+    if (t.id === "gotit") { document.getElementById("pricewarn").classList.add("hide"); return; }
+    if (t.id === "clear") { state.feed = false; state.mix = false; recalc(); toast("Cart cleared"); return; }
+    if (t.closest("#offerrow")) { state.offer = !state.offer; recalc(); return; }
+    if (t.id === "place") { show("confirm"); return; }
+    if (t.id === "cancel") { document.getElementById("cancelnote").textContent = "Cancellation requested. Your refund goes back to the wallet and coins once confirmed."; toast("Cancellation requested"); return; }
+    if (go) { show(go.dataset.go); }
+  });
+  document.getElementById("coins").addEventListener("change", function (e) { state.coins = e.target.checked; recalc(); });
+  document.getElementById("pin").addEventListener("input", function (e) {
+    var ok = /^\d{6}$/.test(e.target.value), res = document.getElementById("pinres");
+    res.textContent = ok ? "✔ Mirzapur, Uttar Pradesh · delivery available" : "Enter a 6-digit pincode";
+    res.className = ok ? "ok" : "muted";
+  });
+  document.getElementById("theme").addEventListener("click", function () {
+    var root = document.documentElement, cur = root.getAttribute("data-theme");
+    var dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    root.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+  recalc(); show("home");
+})();
+</script>
+</body>
+</html>
